@@ -316,6 +316,9 @@
         let moveRight = false;
         let moveUp = false;
         let moveDown = false;
+        let rotateCameraLeft = false;
+        let rotateCameraRight = false;
+        const cameraRotationSpeed = 0.02; // Velocidad de rotación
         let pitchAngle = 0;
         let yawAngle = 0;
         let gridHelper;
@@ -357,220 +360,280 @@
             sphereQuality: 8,          // Calidad de las esferas (segmentos)
             mixingIntensity: 0.3       // Intensidad de la mezcla de colores (0-1)
         };
+        // Configuración mejorada para galaxias de píxeles
+        const GALAXY_PIXEL_CONFIG = {
+            particleCount: 10000,        // Más partículas para mayor riqueza visual
+            size: 0.5,                  // Tamaño de los píxeles
+            spiralFactor: 4.5,          // Factor espiral más pronunciado
+            armCount: 4,                // Número de brazos de la galaxia
+            colorVariety: [
+                // Paleta de colores inspirada en nebulosas y galaxias reales
+                {name: "Azul Profundo", hue: 0.6, sat: 0.8, light: 0.4},
+                {name: "Violeta Cósmico", hue: 0.75, sat: 0.7, light: 0.45},
+                {name: "Turquesa Espacial", hue: 0.55, sat: 0.6, light: 0.5},
+                {name: "Rosa Magenta", hue: 0.9, sat: 0.7, light: 0.5},
+                {name: "Verde Esmeralda", hue: 0.4, sat: 0.6, light: 0.45},
+                {name: "Naranja Cálido", hue: 0.08, sat: 0.8, light: 0.5},
+            ],
+            mixingIntensity: 0.4,       // Intensidad de mezcla de colores
+            expansionTime: 5000,        // Tiempo de expansión de la galaxia
+            rotationSpeed: 0.005,       // Velocidad de rotación
+            lifetime: 30000             // Tiempo de vida de la galaxia
+        };
         
         // Clase para partícula individual
-        class GalaxyParticle {
-            constructor(note, velocity, position, radius = 0, ownerId) {
-                this.note = note;
-                this.velocity = velocity;
-                this.initialPosition = position.clone();
-                this.position = position.clone();
-                this.originalColor = this.noteToColor(note);
-                this.color = this.originalColor.clone();
-                this.size = 0.05 + (velocity / 127) * 0.15;
-                this.alpha = 1.0;
-                this.birthTime = Date.now();
-                this.lifespan = 5000 + (velocity * 100);  // Mayor duración
-                this.ownerId = ownerId;  // Identificador del creador de la partícula
-                
-                // Parámetros físicos
-                this.spiralOffset = Math.random() * Math.PI * 2;
-                this.orbitalDistance = radius > 0 ? radius : 0.1 + Math.random() * 7;
-                this.height = (Math.random() - 0.5) * this.orbitalDistance * 0.2;
-                this.orbitalPlane = new THREE.Vector3(
-                    Math.random() - 0.5,
-                    (Math.random() - 0.5) * 0.25,
-                    Math.random() - 0.5
-                ).normalize();
-                
-                this.armIndex = Math.floor(Math.random() * GALAXY_CONFIG.armCount);
-                this.rotationSpeed = 0.005 / Math.sqrt(Math.max(0.1, this.orbitalDistance));
-                
-                // Crear geometría esférica real
-                this.createSphereGeometry();
+        // 1. SOLUCIÓN PARA EL CONGELAMIENTO DE ANIMACIÓN
+        // 1. SOLUCIÓN PARA EL CONGELAMIENTO DE ANIMACIÓN
+        // El problema probablemente está en la gestión de la memoria y los objetos
+        // Modifica la clase PixelGalaxy para garantizar una limpieza adecuada
+
+        class PixelGalaxy {
+            constructor(id, initialPosition) {
+                this.id = id;
+                this.position = initialPosition.clone();
+                this.creationTime = Date.now();
+                this.geometry = new THREE.BufferGeometry();
+                this.isFadingOut = false;
+                this.fadeOutStartTime = 0;
+                this.lastUpdateTime = Date.now(); // Añadir seguimiento del tiempo de actualización
+                this.isDisposed = false; // Flag para controlar si ya ha sido eliminado
+                this.createGalaxy();
             }
-            
-            createSphereGeometry() {
-                // Crear geometría esférica
-                const geometry = new THREE.SphereGeometry(
-                    this.size, 
-                    GALAXY_CONFIG.sphereQuality, 
-                    GALAXY_CONFIG.sphereQuality
-                );
+
+            createGalaxy() {
+                const particleCount = 2000; // Número de partículas
+                const positions = new Float32Array(particleCount * 3);
+                const colors = new Float32Array(particleCount * 3);
+                const sizes = new Float32Array(particleCount);
                 
-                // Material con iluminación suave
-                const material = new THREE.MeshPhongMaterial({
-                    color: this.color,
-                    emissive: this.color.clone().multiplyScalar(0.5),
+                // Distribución de posiciones en un patrón más uniforme a través de toda la galaxia
+                for (let i = 0; i < particleCount; i++) {
+                    // Usar distribución esférica mejorada para evitar concentraciones
+                    const u = Math.random();
+                    const v = Math.random();
+                    const theta = u * 2.0 * Math.PI;
+                    const phi = Math.acos(2.0 * v - 1.0);
+                    const r = Math.cbrt(Math.random()) * 15;
+
+                    // Coordenadas esféricas con distorsión
+                    const x = r * Math.sin(phi) * Math.cos(theta);
+                    const y = r * Math.sin(phi) * Math.sin(theta) * 0.3; // Aplanar en Y
+                    const z = r * Math.cos(phi);
+
+                    // Añadir distorsión para forma más orgánica
+                    const distortion = 1 + Math.random() * 0.3;
+                    positions[i * 3] = x * distortion;
+                    positions[i * 3 + 1] = y * distortion;
+                    positions[i * 3 + 2] = z * distortion;
+
+                    // Asignar colores iniciales - distribuir a lo largo de todo el espectro de color
+                    const hue = i / particleCount; // Distribución uniforme de colores en el círculo cromático
+                    const saturation = 0.6 + Math.random() * 0.4;
+                    const lightness = 0.4 + Math.random() * 0.2;
+                    
+                    const color = new THREE.Color().setHSL(hue, saturation, lightness);
+                    colors[i * 3] = color.r;
+                    colors[i * 3 + 1] = color.g;
+                    colors[i * 3 + 2] = color.b;
+
+                    // Tamaño más variado para mayor riqueza visual
+                    sizes[i] = 0.2 * (0.5 + Math.pow(Math.random(), 2) * 1.5);
+                }
+
+                // Configurar atributos del buffer
+                this.geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+                this.geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+                this.geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+
+                // Material para los puntos
+                const material = new THREE.PointsMaterial({
+                    size: 0.2,
+                    vertexColors: true,
                     transparent: true,
-                    opacity: 1.0,
-                    shininess: 50,
-                    flatShading: false
+                    opacity: 0.9,
+                    blending: THREE.AdditiveBlending,
+                    depthWrite: false
                 });
+
+                // Crear objeto de puntos
+                this.pixelObject = new THREE.Points(this.geometry, material);
+                this.pixelObject.position.copy(this.position);
                 
-                // Crear la malla
-                this.mesh = new THREE.Mesh(geometry, material);
-                this.mesh.position.copy(this.position);
+                // Rotación inicial aleatoria
+                this.pixelObject.rotation.x = Math.random() * Math.PI * 2;
+                this.pixelObject.rotation.y = Math.random() * Math.PI * 2;
+                this.pixelObject.rotation.z = Math.random() * Math.PI * 2;
                 
                 // Añadir a la escena
-                scene.add(this.mesh);
-                
-                // Añadir a la lista global de partículas para la detección de colisiones
-                particles.push(this);
+                scene.add(this.pixelObject);
             }
-            
+
+            startFadeOut() {
+                if (!this.isFadingOut && this.pixelObject) {
+                    this.isFadingOut = true;
+                    this.fadeOutStartTime = Date.now();
+                }
+            }
+
+            // 2. SOLUCIÓN PARA LA INTERACCIÓN LIMITADA DE COLORES
+            // Actualizar los colores y animación de toda la galaxia
             update() {
-                const age = Date.now() - this.birthTime;
-                const lifePercent = Math.min(age / this.lifespan, 1);
+                if (this.isDisposed || !this.pixelObject) return false;
                 
-                // Actualizar posición según patrones galácticos
-                const expansionProgress = Math.min(age / 2000, 1);
-                const armAngle = (this.armIndex / GALAXY_CONFIG.armCount) * Math.PI * 2;
-                const spiralTightness = GALAXY_CONFIG.spiralFactor * Math.log(1 + this.orbitalDistance);
-                const spiralAngle = this.spiralOffset + (spiralTightness * Math.PI * 2);
-                const finalAngle = armAngle + spiralAngle;
-                const orbitSize = this.orbitalDistance * expansionProgress;
+                const now = Date.now();
+                const deltaTime = now - this.lastUpdateTime;
+                this.lastUpdateTime = now;
                 
-                // Añadir variación
-                const armWidthFactor = 1 - Math.exp(-orbitSize / 2);
-                const dispersion = GALAXY_CONFIG.armWidth * armWidthFactor;
-                const deviation = (Math.random() - 0.5) * dispersion;
+                // Prevenir updates muy grandes que podrían congelar
+                if (deltaTime > 1000) {
+                    return true; // Saltar este frame si hay un gran lapso de tiempo
+                }
                 
-                // Calcular posición
-                const x = Math.cos(finalAngle + deviation) * orbitSize;
-                const z = Math.sin(finalAngle + deviation) * orbitSize;
-                const y = this.height * expansionProgress;
+                const age = now - this.creationTime;
                 
-                this.position.set(
-                    this.initialPosition.x + x,
-                    this.initialPosition.y + y,
-                    this.initialPosition.z + z
-                );
+                // Rotación suave y orgánica - ralentizada para evitar comportamiento errático
+                this.pixelObject.rotation.x += 0.0005;
+                this.pixelObject.rotation.y += 0.001;
+                this.pixelObject.rotation.z += 0.0007;
                 
-                // Actualizar mesh
-                if (this.mesh) {
-                    this.mesh.position.copy(this.position);
+                // Desvanecimiento
+                if (this.isFadingOut) {
+                    const fadeOutDuration = 2000; // 2 segundos de desvanecimiento
+                    const timeSinceFadeStart = now - this.fadeOutStartTime;
+                    const opacity = Math.max(0, 1 - (timeSinceFadeStart / fadeOutDuration));
                     
-                    // Desvanecer gradualmente
-                    if (lifePercent > 0.7) {
-                        this.alpha = 1.0 - ((lifePercent - 0.7) / 0.3);
-                        this.mesh.material.opacity = this.alpha;
+                    if (this.pixelObject && this.pixelObject.material) {
+                        this.pixelObject.material.opacity = opacity;
+                        
+                        // Eliminar cuando se complete el desvanecimiento
+                        if (opacity <= 0) {
+                            this.dispose();
+                            return false;
+                        }
                     }
+                }
+                else if (age > 30000 && this.pixelObject && this.pixelObject.material) {
+                    const fadeProgress = (age - 30000) / 5000;
+                    this.pixelObject.material.opacity = Math.max(0, 1 - fadeProgress);
                     
-                    // Mezcla de colores con otras partículas
-                    this.interactWithNearbyParticles();
+                    // Eliminar si ha excedido su tiempo de vida
+                    if (age > 35000) {
+                        this.dispose();
+                        return false;
+                    }
                 }
-                
-                // Devolver false cuando la partícula debe ser eliminada
-                if (lifePercent >= 1) {
-                    this.dispose();
-                    return false;
-                }
-                
+
                 return true;
             }
-            
-            interactWithNearbyParticles() {
-                // Comprobar la distancia con otras partículas para mezcla de colores
-                for (let i = 0; i < particles.length; i++) {
-                    const otherParticle = particles[i];
-                    
-                    // No mezclar con uno mismo o partículas del mismo creador
-                    if (otherParticle === this || otherParticle.ownerId === this.ownerId) {
-                        continue;
-                    }
-                    
-                    // Calcular distancia
-                    const distance = this.position.distanceTo(otherParticle.position);
-                    
-                    // Si están lo suficientemente cerca, mezclar colores
-                    if (distance < GALAXY_CONFIG.interactionDistance) {
-                        const mixFactor = 1 - (distance / GALAXY_CONFIG.interactionDistance);
-                        this.mixColor(otherParticle.color, mixFactor * GALAXY_CONFIG.mixingIntensity);
-                    }
-                }
-            }
-            
-            mixColor(otherColor, factor) {
-                // Mezclar color actual con otherColor según el factor
-                const newR = this.color.r * (1 - factor) + otherColor.r * factor;
-                const newG = this.color.g * (1 - factor) + otherColor.g * factor;
-                const newB = this.color.b * (1 - factor) + otherColor.b * factor;
-                
-                // Actualizar color
-                this.color.setRGB(newR, newG, newB);
-                
-                // Actualizar material si existe
-                if (this.mesh && this.mesh.material) {
-                    this.mesh.material.color.copy(this.color);
-                    this.mesh.material.emissive.copy(this.color).multiplyScalar(0.5);
-                    this.mesh.material.needsUpdate = true;
-                }
-            }
-            
+
             dispose() {
-                // Eliminar de la escena
-                if (this.mesh) {
-                    scene.remove(this.mesh);
-                    this.mesh.geometry.dispose();
-                    this.mesh.material.dispose();
-                    this.mesh = null;
+                if (this.isDisposed) return; // Evitar disposiciones múltiples
+                
+                this.isDisposed = true;
+                
+                if (this.pixelObject) {
+                    scene.remove(this.pixelObject);
+                    
+                    if (this.pixelObject.geometry) {
+                        this.pixelObject.geometry.dispose();
+                    }
+                    
+                    if (this.pixelObject.material) {
+                        this.pixelObject.material.dispose();
+                    }
+                    
+                    this.pixelObject = null;
                 }
                 
-                // Eliminar de la lista global de partículas
-                const index = particles.indexOf(this);
-                if (index > -1) {
-                    particles.splice(index, 1);
-                }
+                this.geometry = null;
             }
-            
-            noteToColor(note) {
-                // Colores basados en el círculo cromático musical
-                const hue = ((127 - note) % 48) / 48;
-                const lightness = 0.5 + ((Math.floor(note / 12) % 5) / 12);
-                return new THREE.Color().setHSL(hue, 0.8, lightness);
+
+            // Método para añadir más partículas dinámicas y actualizar colores existentes
+            addParticles(note, velocity) {
+                if (!this.pixelObject || !this.pixelObject.geometry || this.isDisposed) return;
+
+                // Obtener los atributos actuales
+                const geometry = this.pixelObject.geometry;
+                const positions = geometry.getAttribute('position');
+                const colors = geometry.getAttribute('color');
+                
+                // No añadir nuevas partículas, solo modificar las existentes para mayor eficiencia
+                
+                // Mapear la nota MIDI a un color (del espectro musical)
+                const noteHue = (note % 12) / 12; // Normalize a 0-1 basado en la clase de la nota
+                const noteOctave = Math.floor(note / 12);
+                const noteSaturation = 0.7 + (velocity / 127) * 0.3; // Mayor velocidad = más saturación
+                const noteLightness = 0.4 + (noteOctave / 10) * 0.4; // Octavas más altas son más brillantes
+                
+                // Color objetivo basado en la nota
+                const targetColor = new THREE.Color().setHSL(noteHue, noteSaturation, noteLightness);
+                
+                // Factor de influencia basado en la velocidad
+                const influenceFactor = (velocity / 127) * 0.2; // 0.0 - 0.2
+                
+                // Número de partículas a afectar (proporcional a la velocidad)
+                const particlesToAffect = Math.floor(positions.count * (0.1 + (velocity / 127) * 0.4));
+                
+                // Tasa de mezcla para cada partícula (para suavizar el cambio)
+                const mixRate = 0.1 + (velocity / 127) * 0.3;
+                
+                // Actualizar colores de las partículas existentes
+                for (let i = 0; i < particlesToAffect; i++) {
+                    // Elegir partículas al azar para afectar
+                    const idx = Math.floor(Math.random() * positions.count);
+                    
+                    // Calcular la distancia al centro para crear un efecto de onda expansiva
+                    const x = positions.array[idx * 3];
+                    const y = positions.array[idx * 3 + 1];
+                    const z = positions.array[idx * 3 + 2];
+                    const distance = Math.sqrt(x*x + y*y + z*z);
+                    
+                    // Ajustar el factor de influencia basado en la distancia
+                    // Las partículas más cercanas al centro tienen más probabilidad de cambiar
+                    const distanceFactor = Math.max(0, 1 - distance / 15);
+                    const finalInfluence = influenceFactor * distanceFactor;
+                    
+                    // Sólo afectar la partícula si el factor final es significativo
+                    if (finalInfluence > 0.01) {
+                        // Obtener color actual
+                        const currentR = colors.array[idx * 3];
+                        const currentG = colors.array[idx * 3 + 1];
+                        const currentB = colors.array[idx * 3 + 2];
+                        const currentColor = new THREE.Color(currentR, currentG, currentB);
+                        
+                        // Mezclar con el color de la nota
+                        const r = currentColor.r * (1 - mixRate) + targetColor.r * mixRate;
+                        const g = currentColor.g * (1 - mixRate) + targetColor.g * mixRate;
+                        const b = currentColor.b * (1 - mixRate) + targetColor.b * mixRate;
+                        
+                        // Actualizar el color
+                        colors.array[idx * 3] = r;
+                        colors.array[idx * 3 + 1] = g;
+                        colors.array[idx * 3 + 2] = b;
+                    }
+                }
+                
+                // Marcar para actualización
+                colors.needsUpdate = true;
             }
         }
         
         // Clase Galaxy para manejar conjuntos de partículas
+        // Modificar el método addNote en la clase Galaxy para usar PixelGalaxy
         class Galaxy {
             constructor(id, initialPosition) {
                 this.id = id;
                 this.position = initialPosition.clone();
-                this.particles = [];
+                this.pixelGalaxy = null;
                 this.activeNotes = new Map();
-                this.lastNoteTime = Date.now();
                 this.energy = 0;
-                this.rotation = 0;
-                this.creationTime = Date.now();
-                
-                // Crear núcleo brillante
-                this.createGalaxyCore();
+                this.lastNoteTime = Date.now();
+                this.isDisposed = false;
             }
-            
-            createGalaxyCore() {
-                // Luz central con mayor alcance
-                this.coreLight = new THREE.PointLight(0x6688ff, 1.5, 20);
-                this.coreLight.position.copy(this.position);
-                scene.add(this.coreLight);
-                
-                // Esfera brillante para el núcleo con mejor calidad
-                const coreGeometry = new THREE.SphereGeometry(0.7, 24, 24);
-                const coreMaterial = new THREE.MeshPhongMaterial({
-                    color: 0xaaccff,
-                    emissive: 0x4466aa,
-                    transparent: true,
-                    opacity: 0.8,
-                    shininess: 80,
-                    specular: 0xffffff
-                });
-                
-                this.coreObject = new THREE.Mesh(coreGeometry, coreMaterial);
-                this.coreObject.position.copy(this.position);
-                scene.add(this.coreObject);
-            }
-            
+
             addNote(note, velocity) {
+                if (this.isDisposed) return;
+                
                 // Registrar nota activa
                 this.activeNotes.set(note, {
                     velocity: velocity,
@@ -580,143 +643,75 @@
                 // Aumentar energía de la galaxia
                 this.energy = Math.min(1.0, this.energy + (velocity / 127) * 0.2);
                 this.lastNoteTime = Date.now();
-                
-                // Ajustar brillo del núcleo según energía
-                if (this.coreLight) {
-                    this.coreLight.intensity = 1.5 + this.energy * 4.0;
-                    this.coreObject.scale.set(
-                        1.0 + this.energy * 2.0,
-                        1.0 + this.energy * 2.0,
-                        1.0 + this.energy * 2.0
-                    );
+
+                // Si no existe la galaxia de píxeles, crearla
+                if (!this.pixelGalaxy) {
+                    this.pixelGalaxy = new PixelGalaxy(this.id, this.position);
                 }
-                
-                // Crear más partículas para notas fuertes
-                const particleCount = Math.floor(15 + (velocity / 127) * 40);
-                
-                // Posición para las nuevas partículas
-                const direction = new THREE.Vector3();
-                avatarObject.getWorldDirection(direction);
-                
-                const viewPosition = new THREE.Vector3();
-                if (this.id === username) {
-                    // Para nuestra propia galaxia, crear las partículas frente a nosotros
-                    viewPosition.copy(avatarObject.position.clone());
-                    const viewVector = direction.clone().multiplyScalar(GALAXY_CONFIG.viewingDistance);
-                    viewPosition.add(viewVector);
-                } else {
-                    viewPosition.copy(this.position);
-                }
-                
-                // Crear partículas con distribución natural
-                for (let i = 0; i < particleCount; i++) {
-                    // Distribución de densidad que favorece ciertas distancias
-                    let radius = (Math.random() * 0.7 + 0.3) * 6;
-                    
-                    // Especializaciones para tipos de estrellas
-                    if (Math.random() < 0.3) {
-                        // Estrellas del núcleo
-                        radius *= 0.3; 
-                    }
-                    if (Math.random() < 0.1) {
-                        // Estrellas del halo
-                        radius *= 1.8;
-                    }
-                    
-                    // Variación en posición inicial
-                    const jitter = new THREE.Vector3(
-                        (Math.random() - 0.5) * 0.8,
-                        (Math.random() - 0.5) * 0.8,
-                        (Math.random() - 0.5) * 0.8
-                    );
-                    
-                    // Crear partícula con propietario para tracking
-                    const particle = new GalaxyParticle(
-                        note, 
-                        velocity, 
-                        viewPosition.clone().add(jitter),
-                        radius,
-                        this.id  // ID del propietario
-                    );
-                    
-                    // Variación en tamaño basada en tipo estelar
-                    if (Math.random() < 0.05) {
-                        // Gigantes
-                        particle.size *= 2.0;
-                        if (particle.mesh) {
-                            particle.mesh.scale.set(2.0, 2.0, 2.0);
-                        }
-                    }
-                    if (Math.random() < 0.01) {
-                        // Supernovas
-                        particle.size *= 3.0;
-                        particle.color.setRGB(1.0, 0.8, 0.6);
-                        if (particle.mesh) {
-                            particle.mesh.scale.set(3.0, 3.0, 3.0);
-                            particle.mesh.material.color.copy(particle.color);
-                            particle.mesh.material.emissive.copy(particle.color).multiplyScalar(0.7);
-                        }
-                    }
-                    
-                    this.particles.push(particle);
+
+                // Aplicar el efecto de la nota a la galaxia existente
+                if (this.pixelGalaxy) {
+                    this.pixelGalaxy.addParticles(note, velocity);
                 }
             }
-            
+
             removeNote(note) {
+                if (this.isDisposed) return;
+                
+                // Eliminar la nota específica
                 this.activeNotes.delete(note);
+                
+                // Si no quedan notas activas y ha pasado tiempo suficiente, comenzar el desvanecimiento
+                if (this.activeNotes.size === 0 && Date.now() - this.lastNoteTime > 10000) {
+                    if (this.pixelGalaxy) {
+                        // Iniciar desvanecimiento gradual
+                        this.pixelGalaxy.startFadeOut();
+                    }
+                }
             }
-            
+
             update() {
-                // Actualizar energía
-                const timeSinceLastNote = Date.now() - this.lastNoteTime;
-                if (timeSinceLastNote > 2000) {
-                    this.energy = Math.max(0, this.energy - 0.01);
+                if (this.isDisposed) return;
+                
+                // Actualizar la galaxia de píxeles si existe
+                if (this.pixelGalaxy) {
+                    const result = this.pixelGalaxy.update();
                     
-                    // Ajustar brillo del núcleo según energía
-                    if (this.coreLight) {
-                        this.coreLight.intensity = 1.5 + this.energy * 4.0;
-                        this.coreObject.scale.set(
-                            1.0 + this.energy * 2.0,
-                            1.0 + this.energy * 2.0,
-                            1.0 + this.energy * 2.0
-                        );
+                    // Si la galaxia de píxeles fue eliminada, establecer a null
+                    if (!result) {
+                        this.pixelGalaxy = null;
                     }
                 }
                 
-                // Actualizar rotación
-                this.rotation += GALAXY_CONFIG.rotationSpeed * (1.0 + this.energy);
-                
-                // Actualizar partículas individuales y filtrar las que terminaron
-                this.particles = this.particles.filter(particle => particle.update());
-                
-                // Actualizar posición del núcleo
-                if (this.coreLight) {
-                    this.coreLight.position.copy(this.position);
-                    this.coreObject.position.copy(this.position);
-                    
-                    // Rotación suave del núcleo
-                    this.coreObject.rotation.y += 0.01;
+                // Disminuir gradualmente la energía con el tiempo
+                const now = Date.now();
+                if (now - this.lastNoteTime > 2000) {
+                    this.energy = Math.max(0, this.energy - 0.005);
                 }
             }
-            
+
             updatePosition(newPos) {
-                this.position.copy(newPos);
-            }
-            
-            dispose() {
-                // Eliminar todas las partículas
-                for (let i = this.particles.length - 1; i >= 0; i--) {
-                    this.particles[i].dispose();
-                }
-                this.particles = [];
+                if (this.isDisposed) return;
                 
-                // Eliminar núcleo
-                if (this.coreLight) {
-                    scene.remove(this.coreLight);
-                    scene.remove(this.coreObject);
-                    this.coreObject.geometry.dispose();
-                    this.coreObject.material.dispose();
+                this.position.copy(newPos);
+                if (this.pixelGalaxy && this.pixelGalaxy.pixelObject) {
+                    this.pixelGalaxy.pixelObject.position.copy(newPos);
                 }
+            }
+
+            dispose() {
+                if (this.isDisposed) return;
+                
+                this.isDisposed = true;
+                
+                // Eliminar la galaxia de píxeles si existe
+                if (this.pixelGalaxy) {
+                    this.pixelGalaxy.dispose();
+                    this.pixelGalaxy = null;
+                }
+                
+                // Limpiar otras referencias
+                this.activeNotes.clear();
             }
         }
 
@@ -870,7 +865,8 @@
                 createNebula();
             }
         }
-        
+        // Almacenar las nebulosas para animación
+        const nebulaeObjects = [];
         // Crear una nebulosa con mejor apariencia
         function createNebula() {
             const geometry = new THREE.BufferGeometry();
@@ -924,9 +920,9 @@
                 const z = radius * Math.cos(phi) * distortion;
                 
                 // Posiciones
-                positions[i * 3] = position.x + x;
-                positions[i * 3 + 1] = position.y + y;
-                positions[i * 3 + 2] = position.z + z;
+                positions[i * 3] = x;
+                positions[i * 3 + 1] = y;
+                positions[i * 3 + 2] = z;
                 
                 // Color con variación sutil
                 const hue = selectedType.hue + (Math.random() - 0.5) * 0.1;
@@ -955,7 +951,69 @@
             });
             
             const nebula = new THREE.Points(geometry, material);
+            
+            // Posición global de la nebulosa
+            nebula.position.copy(position);
+            
+            // Parámetros de rotación y movimiento únicos para cada nebulosa
+            const nebulaData = {
+                object: nebula,
+                // Rotación lenta y aleatoria en cada eje
+                rotationSpeed: {
+                    x: (Math.random() - 0.5) * 0.002,
+                    y: (Math.random() - 0.5) * 0.002,
+                    z: (Math.random() - 0.5) * 0.002
+                },
+                // Movimiento en elipse lento
+                movementPath: {
+                    center: position.clone(),
+                    amplitude: {
+                        x: 20 + Math.random() * 50,
+                        y: 20 + Math.random() * 50,
+                        z: 20 + Math.random() * 50
+                    },
+                    phase: {
+                        x: Math.random() * Math.PI * 2,
+                        y: Math.random() * Math.PI * 2,
+                        z: Math.random() * Math.PI * 2
+                    },
+                    speed: {
+                        x: (Math.random() - 0.5) * 0.005,
+                        y: (Math.random() - 0.5) * 0.005,
+                        z: (Math.random() - 0.5) * 0.005
+                    }
+                }
+            };
+            
+            // Añadir a la escena
             scene.add(nebula);
+            
+            // Almacenar para animación
+            nebulaeObjects.push(nebulaData);
+        }
+
+        // Modificar la función animate para animar las nebulosas
+        function animateNebulae() {
+            const time = Date.now() * 0.0001; // Tiempo muy lento para movimiento suave
+            
+            nebulaeObjects.forEach(nebulaData => {
+                const { object, rotationSpeed, movementPath } = nebulaData;
+                
+                // Rotación
+                object.rotation.x += rotationSpeed.x;
+                object.rotation.y += rotationSpeed.y;
+                object.rotation.z += rotationSpeed.z;
+                
+                // Movimiento en elipse
+                object.position.x = movementPath.center.x + 
+                    Math.sin(time * movementPath.speed.x + movementPath.phase.x) * movementPath.amplitude.x;
+                
+                object.position.y = movementPath.center.y + 
+                    Math.cos(time * movementPath.speed.y + movementPath.phase.y) * movementPath.amplitude.y;
+                
+                object.position.z = movementPath.center.z + 
+                    Math.sin(time * movementPath.speed.z + movementPath.phase.z) * movementPath.amplitude.z;
+            });
         }
 
         function onWindowResize() {
@@ -964,6 +1022,8 @@
             renderer.setSize(window.innerWidth, window.innerHeight);
         }
 
+        
+        
         function onKeyDown(event) {
             switch (event.code) {
                 case 'KeyW':
@@ -990,6 +1050,12 @@
                 case 'KeyP':
                     cycleViewMode();
                     break;
+                case 'KeyQ':
+                    rotateCameraLeft = true;
+                    break;
+                case 'KeyE':
+                    rotateCameraRight = true;
+                    break;
             }
         }
 
@@ -1012,6 +1078,12 @@
                     break;
                 case 'KeyX':
                     moveDown = false;
+                    break;
+                case 'KeyQ':
+                    rotateCameraLeft = false;
+                    break;
+                case 'KeyE':
+                    rotateCameraRight = false;
                     break;
             }
         }
@@ -1170,62 +1242,83 @@
             updateCameraPosition();
         }
 
+        // CORRECCIÓN EN LA FUNCIÓN ANIMATE PARA ASEGURAR UNA ANIMACIÓN FLUIDA
         function animate() {
-            requestAnimationFrame(animate);
+            // Solicitar el siguiente frame de animación al inicio para garantizar continuidad
+            const animationId = requestAnimationFrame(animate);
             
-            const speed = 0.2;
-            const direction = new THREE.Vector3();
-            
-            direction.set(
-                -Math.sin(yawAngle),
-                0,
-                -Math.cos(yawAngle)
-            );
-            
-            const frontVector = direction.clone().normalize().multiplyScalar(speed);
-            const rightVector = new THREE.Vector3(frontVector.z, 0, -frontVector.x);
-            
-            // Aplicar movimiento basado en las teclas presionadas
-            if (moveForward) {
-                avatarObject.position.add(frontVector);
-            }
-            if (moveBackward) {
-                avatarObject.position.sub(frontVector);
-            }
-            if (moveLeft) {
-                avatarObject.position.sub(rightVector);
-            }
-            if (moveRight) {
-                avatarObject.position.add(rightVector);
-            }
-            if (moveUp) {
-                avatarObject.position.y += speed;
-            }
-            if (moveDown) {
-                avatarObject.position.y -= speed;
-            }
-            
-            // Actualizar posición de la cámara
-            updateCameraPosition();
-            
-            // Actualizar visualización de coordenadas
-            updateCoordinatesDisplay();
-            
-            // Actualizar galaxia personal
-            if (galaxies[username]) {
-                galaxies[username].updatePosition(avatarObject.position.clone());
-                galaxies[username].update();
-            }
-            
-            // Actualizar otras galaxias
-            for (const playerId in otherPlayers) {
-                if (galaxies[playerId]) {
-                    galaxies[playerId].update();
+            try {
+                const speed = 0.2;
+                const direction = new THREE.Vector3();
+                
+                direction.set(
+                    -Math.sin(yawAngle),
+                    0,
+                    -Math.cos(yawAngle)
+                );
+                
+                const frontVector = direction.clone().normalize().multiplyScalar(speed);
+                const rightVector = new THREE.Vector3(frontVector.z, 0, -frontVector.x);
+                
+                // Aplicar movimiento basado en las teclas presionadas
+                if (moveForward) {
+                    avatarObject.position.add(frontVector);
                 }
+                if (moveBackward) {
+                    avatarObject.position.sub(frontVector);
+                }
+                if (moveLeft) {
+                    avatarObject.position.sub(rightVector);
+                }
+                if (moveRight) {
+                    avatarObject.position.add(rightVector);
+                }
+                if (moveUp) {
+                    avatarObject.position.y += speed;
+                }
+                if (moveDown) {
+                    avatarObject.position.y -= speed;
+                }
+                // Rotación de cámara con teclas Q y E
+                if (rotateCameraLeft) {
+                    yawAngle += cameraRotationSpeed;
+                    avatarObject.rotation.y = yawAngle;
+                }
+                if (rotateCameraRight) {
+                    yawAngle -= cameraRotationSpeed;
+                    avatarObject.rotation.y = yawAngle;
+                }
+                
+                // Actualizar posición de la cámara
+                updateCameraPosition();
+                
+                // Actualizar visualización de coordenadas
+                updateCoordinatesDisplay();
+                
+                // Actualizar galaxia personal
+                if (galaxies[username]) {
+                    galaxies[username].updatePosition(avatarObject.position.clone());
+                    galaxies[username].update();
+                }
+                
+                // Actualizar otras galaxias
+                for (const playerId in otherPlayers) {
+                    if (galaxies[playerId]) {
+                        galaxies[playerId].update();
+                    }
+                }
+                
+                // Actualizar nebulosas - asegúrate de que esta función exista y funcione correctamente
+                if (typeof animateNebulae === 'function') {
+                    animateNebulae();
+                }
+                
+                // Renderizar escena
+                renderer.render(scene, camera);
+            } catch (error) {
+                console.error("Error en el ciclo de animación:", error);
+                // No cancelar la animación en caso de error, dejar que continúe
             }
-            
-            // Renderizar escena
-            renderer.render(scene, camera);
         }
         
         function updateCoordinatesDisplay() {
@@ -1445,25 +1538,38 @@
             midiStatusElement.textContent = `${midiAccess.inputs.size} dispositivo(s) MIDI encontrado(s). ${activeInputs.size} activo(s).`;
         }
 
+        // Mejora en la función onMIDIMessage para manejar eventos MIDI de manera más robusta
         function onMIDIMessage(event) {
-            const command = event.data[0] >> 4;
-            const channel = event.data[0] & 0xf;
-            
-            const note = event.data[1];
-            
-            const velocity = (event.data.length > 2) ? event.data[2] : 0;
-            
-            if (command === 9 && velocity > 0) {
-                if (galaxies[username]) {
-                    galaxies[username].addNote(note, velocity);
+            try {
+                const command = event.data[0] >> 4;
+                const channel = event.data[0] & 0xf;
+                
+                const note = event.data[1];
+                const velocity = (event.data.length > 2) ? event.data[2] : 0;
+                
+                // Verificar que los datos son válidos
+                if (isNaN(note) || isNaN(velocity)) {
+                    console.warn("Datos MIDI inválidos recibidos:", event.data);
+                    return;
                 }
                 
-                midiStatusElement.textContent = `Nota: ${note}, Velocidad: ${velocity}`;
-            }
-            else if ((command === 8 || (command === 9 && velocity === 0))) {
-                if (galaxies[username]) {
-                    galaxies[username].removeNote(note);
+                if (command === 9 && velocity > 0) {
+                    // Nota presionada
+                    if (galaxies[username]) {
+                        galaxies[username].addNote(note, velocity);
+                        
+                        // Actualizar estado en UI
+                        midiStatusElement.textContent = `Nota: ${note}, Velocidad: ${velocity}`;
+                    }
                 }
+                else if ((command === 8 || (command === 9 && velocity === 0))) {
+                    // Nota liberada
+                    if (galaxies[username]) {
+                        galaxies[username].removeNote(note);
+                    }
+                }
+            } catch (error) {
+                console.error("Error al procesar mensaje MIDI:", error);
             }
         }
 

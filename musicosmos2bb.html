@@ -1,0 +1,1583 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Musicosmos - Universo Musical Interactivo</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: 'Arial', sans-serif;
+            background-color: #000;
+            color: white;
+        }
+        #info {
+            position: absolute;
+            top: 10px;
+            width: 100%;
+            text-align: center;
+            color: white;
+            background-color: rgba(0,0,0,0.5);
+            padding: 10px;
+            z-index: 100;
+            opacity: 1;
+            transition: opacity 5s ease-in;
+        }
+        .fade-out {
+            opacity: 0;
+        }
+        #midiStatus {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            color: white;
+            background-color: rgba(0,0,0,0.5);
+            padding: 10px;
+            z-index: 100;
+            border-radius: 5px;
+        }
+        #coordinates {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            background-color: rgba(0,0,0,0.7);
+            padding: 10px;
+            z-index: 100;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 14px;
+        }
+        #teleportPanel {
+            position: absolute;
+            bottom: 60px;
+            left: 10px;
+            color: white;
+            background-color: rgba(0,0,0,0.7);
+            padding: 15px;
+            z-index: 100;
+            border-radius: 5px;
+            display: none;
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(100, 120, 255, 0.3);
+            box-shadow: 0 0 15px rgba(100, 120, 255, 0.3);
+        }
+        #teleportPanel input {
+            width: 60px;
+            background-color: rgba(30,30,40,0.8);
+            color: white;
+            border: 1px solid #557;
+            border-radius: 3px;
+            padding: 5px;
+            margin: 0 5px;
+            font-family: monospace;
+        }
+        #teleportPanel button {
+            background-color: #4466dd;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            padding: 6px 12px;
+            cursor: pointer;
+            margin-left: 10px;
+        }
+        #teleportPanel button:hover {
+            background-color: #5577ee;
+        }
+        canvas {
+            display: block;
+        }
+        .btn-settings {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 50px;
+            height: 50px;
+            background-color: rgba(50,50,70,0.6);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            cursor: pointer;
+            transition: background-color 0.3s, transform 0.2s;
+            box-shadow: 0 0 15px rgba(100,100,255,0.5);
+            z-index: 200;
+        }
+        .btn-settings:hover {
+            background-color: rgba(70,70,100,0.8);
+            transform: scale(1.1);
+        }
+        .btn-teleport {
+            position: absolute;
+            bottom: 20px;
+            left: 10px;
+            background-color: rgba(50,50,70,0.6);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            padding: 10px 15px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            box-shadow: 0 0 10px rgba(100,100,255,0.5);
+            z-index: 200;
+        }
+        .btn-teleport:hover {
+            background-color: rgba(70,70,100,0.8);
+        }
+        .btn-perspective {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background-color: rgba(50,50,70,0.6);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            padding: 10px 15px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            box-shadow: 0 0 10px rgba(100,100,255,0.5);
+            z-index: 200;
+        }
+        .btn-perspective:hover {
+            background-color: rgba(70,70,100,0.8);
+        }
+        #settingsMenu {
+            position: absolute;
+            top: 80px;
+            right: 20px;
+            width: 300px;
+            max-height: 80vh;
+            overflow-y: auto;
+            background-color: rgba(30,30,50,0.9);
+            color: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 0 20px rgba(0,0,255,0.3);
+            z-index: 200;
+            display: none;
+            backdrop-filter: blur(5px);
+        }
+        #settingsMenu h3 {
+            margin-top: 0;
+            color: #aaf;
+            border-bottom: 1px solid #557;
+            padding-bottom: 10px;
+        }
+        #viewControls {
+            position: absolute;
+            right: 20px;
+            bottom: 70px;
+            color: white;
+            background-color: rgba(0,0,0,0.5);
+            padding: 10px;
+            z-index: 100;
+            border-radius: 5px;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        #viewControls button {
+            background-color: rgba(50,50,70,0.6);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            padding: 5px 10px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+        #viewControls button:hover {
+            background-color: rgba(70,70,100,0.8);
+        }
+        .midi-device-item {
+            margin-bottom: 10px;
+            padding: 8px;
+            background-color: rgba(50,50,80,0.5);
+            border-radius: 5px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .midi-device-item.active {
+            background-color: rgba(80,80,180,0.5);
+            border-left: 3px solid #88f;
+        }
+        .toggle-button {
+            width: 40px;
+            height: 20px;
+            background-color: #444;
+            border-radius: 10px;
+            position: relative;
+            cursor: pointer;
+        }
+        .toggle-button.active {
+            background-color: #55f;
+        }
+        .toggle-button::after {
+            content: '';
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            background-color: white;
+            border-radius: 50%;
+            top: 2px;
+            left: 2px;
+            transition: transform 0.3s;
+        }
+        .toggle-button.active::after {
+            transform: translateX(20px);
+        }
+        .network-status {
+            margin-top: 20px;
+            padding-top: 10px;
+            border-top: 1px solid #557;
+        }
+        #usernameInput {
+            width: 100%;
+            padding: 8px;
+            margin: 10px 0;
+            background-color: rgba(40,40,60,0.9);
+            color: white;
+            border: 1px solid #557;
+            border-radius: 5px;
+        }
+        #connectButton {
+            padding: 8px 16px;
+            background-color: #4466dd;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        #connectButton:hover {
+            background-color: #5577ee;
+        }
+    </style>
+</head>
+<body>
+    <div id="info">
+        <h1>Musicosmos</h1>
+        <p>Conecta un dispositivo MIDI y toca para crear galaxias musicales.</p>
+        <p>Usa las teclas W, A, S, D para moverte, ratón para navegar en todas direcciones.</p>
+    </div>
+    
+    <div id="midiStatus">Esperando conexión MIDI...</div>
+    <div id="coordinates">X: 0.00, Y: 0.00, Z: 0.00</div>
+    
+    <button class="btn-teleport" id="btnTeleport">Teletransporte</button>
+    <button class="btn-perspective" id="btnPerspective">Cambiar Vista</button>
+    
+    <div id="teleportPanel">
+        <div>X: <input type="number" id="teleportX" step="0.1"></div>
+        <div>Y: <input type="number" id="teleportY" step="0.1"></div>
+        <div>Z: <input type="number" id="teleportZ" step="0.1"></div>
+        <button id="btnGoToCoords">Ir a Coordenadas</button>
+    </div>
+    
+    <div id="viewControls">
+        <button id="btnFirstPerson">Vista en Primera Persona</button>
+        <button id="btnThirdPerson">Vista en Tercera Persona</button>
+        <button id="btnBirdEye">Vista de Pájaro</button>
+    </div>
+    
+    <button class="btn-settings" id="btnSettings">⚙️</button>
+    
+    <div id="settingsMenu">
+        <h3>Configuración</h3>
+        <div>
+            <h4>Dispositivos MIDI</h4>
+            <div id="midiDevicesContainer">
+                <p>No se encontraron dispositivos MIDI</p>
+            </div>
+        </div>
+        
+        <div class="network-status">
+            <h4>Multijugador</h4>
+            <input type="text" id="usernameInput" placeholder="Tu nombre en el cosmos" maxlength="20">
+            <button id="connectButton">Conectar</button>
+            <div id="playersOnline"></div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        // Variables principales
+        let scene, camera, renderer;
+        let galaxies = {};
+        let particles = [];  // Para mezcla de colores global
+        let moveForward = false;
+        let moveBackward = false;
+        let moveLeft = false;
+        let moveRight = false;
+        let moveUp = false;
+        let moveDown = false;
+        let rotateCameraLeft = false;
+        let rotateCameraRight = false;
+        const cameraRotationSpeed = 0.02; // Velocidad de rotación
+        let pitchAngle = 0;
+        let yawAngle = 0;
+        let gridHelper;
+        
+        // Objetos para la cámara
+        let avatarObject;
+        let cameraTarget = new THREE.Vector3();
+        let cameraOffset = new THREE.Vector3(0, 10, 20);
+        let currentViewMode = 'thirdPerson';
+        
+        // Variables de control del mouse
+        let isDragging = false;
+        let previousMousePosition = { x: 0, y: 0 };
+        let mouseSensitivity = 0.003;
+        
+        // Variables MIDI
+        let midiAccess = null;
+        let activeInputs = new Set();
+        let midiStatusElement = document.getElementById('midiStatus');
+        let coordsElement = document.getElementById('coordinates');
+        
+        // Variables de red
+        let username = "Explorador" + Math.floor(Math.random() * 1000);
+        let otherPlayers = {};
+        
+        // Configuración física mejorada de galaxias
+        const GALAXY_CONFIG = {
+            particleCount: 8000,        // Más partículas para mejor efecto
+            maxSize: 80,               // Mayor tamaño máximo
+            coreIntensity: 1.5,        // Más brillo en el núcleo
+            expansionRate: 0.025,      // Velocidad de expansión
+            rotationSpeed: 0.0008,     // Rotación
+            fadeRate: 0.002,           // Desvanecimiento
+            spiralFactor: 3.5,         // Factor espiral más pronunciado
+            armCount: 5,               // Brazos
+            armWidth: 0.4,             // Ancho de brazos
+            viewingDistance: 30,       // Distancia de visualización
+            interactionDistance: 2.0,  // Distancia para mezcla de colores entre partículas
+            sphereQuality: 8,          // Calidad de las esferas (segmentos)
+            mixingIntensity: 0.3       // Intensidad de la mezcla de colores (0-1)
+        };
+        // Configuración mejorada para galaxias de píxeles
+        const GALAXY_PIXEL_CONFIG = {
+            particleCount: 10000,        // Más partículas para mayor riqueza visual
+            size: 0.5,                  // Tamaño de los píxeles
+            spiralFactor: 4.5,          // Factor espiral más pronunciado
+            armCount: 4,                // Número de brazos de la galaxia
+            colorVariety: [
+                // Paleta de colores inspirada en nebulosas y galaxias reales
+                {name: "Azul Profundo", hue: 0.6, sat: 0.8, light: 0.4},
+                {name: "Violeta Cósmico", hue: 0.75, sat: 0.7, light: 0.45},
+                {name: "Turquesa Espacial", hue: 0.55, sat: 0.6, light: 0.5},
+                {name: "Rosa Magenta", hue: 0.9, sat: 0.7, light: 0.5},
+                {name: "Verde Esmeralda", hue: 0.4, sat: 0.6, light: 0.45},
+                {name: "Naranja Cálido", hue: 0.08, sat: 0.8, light: 0.5},
+            ],
+            mixingIntensity: 0.4,       // Intensidad de mezcla de colores
+            expansionTime: 5000,        // Tiempo de expansión de la galaxia
+            rotationSpeed: 0.005,       // Velocidad de rotación
+            lifetime: 30000             // Tiempo de vida de la galaxia
+        };
+        
+        // Clase para partícula individual
+        // 1. SOLUCIÓN PARA EL CONGELAMIENTO DE ANIMACIÓN
+        // 1. SOLUCIÓN PARA EL CONGELAMIENTO DE ANIMACIÓN
+        // El problema probablemente está en la gestión de la memoria y los objetos
+        // Modifica la clase PixelGalaxy para garantizar una limpieza adecuada
+
+        class PixelGalaxy {
+            constructor(id, initialPosition) {
+                this.id = id;
+                this.position = initialPosition.clone();
+                this.creationTime = Date.now();
+                this.geometry = new THREE.BufferGeometry();
+                this.isFadingOut = false;
+                this.fadeOutStartTime = 0;
+                this.lastUpdateTime = Date.now(); // Añadir seguimiento del tiempo de actualización
+                this.isDisposed = false; // Flag para controlar si ya ha sido eliminado
+                this.createGalaxy();
+            }
+
+            createGalaxy() {
+                const particleCount = 2000; // Número de partículas
+                const positions = new Float32Array(particleCount * 3);
+                const colors = new Float32Array(particleCount * 3);
+                const sizes = new Float32Array(particleCount);
+                
+                // Distribución de posiciones en un patrón más uniforme a través de toda la galaxia
+                for (let i = 0; i < particleCount; i++) {
+                    // Usar distribución esférica mejorada para evitar concentraciones
+                    const u = Math.random();
+                    const v = Math.random();
+                    const theta = u * 2.0 * Math.PI;
+                    const phi = Math.acos(2.0 * v - 1.0);
+                    const r = Math.cbrt(Math.random()) * 15;
+
+                    // Coordenadas esféricas con distorsión
+                    const x = r * Math.sin(phi) * Math.cos(theta);
+                    const y = r * Math.sin(phi) * Math.sin(theta) * 0.3; // Aplanar en Y
+                    const z = r * Math.cos(phi);
+
+                    // Añadir distorsión para forma más orgánica
+                    const distortion = 1 + Math.random() * 0.3;
+                    positions[i * 3] = x * distortion;
+                    positions[i * 3 + 1] = y * distortion;
+                    positions[i * 3 + 2] = z * distortion;
+
+                    // Asignar colores iniciales - distribuir a lo largo de todo el espectro de color
+                    const hue = i / particleCount; // Distribución uniforme de colores en el círculo cromático
+                    const saturation = 0.6 + Math.random() * 0.4;
+                    const lightness = 0.4 + Math.random() * 0.2;
+                    
+                    const color = new THREE.Color().setHSL(hue, saturation, lightness);
+                    colors[i * 3] = color.r;
+                    colors[i * 3 + 1] = color.g;
+                    colors[i * 3 + 2] = color.b;
+
+                    // Tamaño más variado para mayor riqueza visual
+                    sizes[i] = 0.2 * (0.5 + Math.pow(Math.random(), 2) * 1.5);
+                }
+
+                // Configurar atributos del buffer
+                this.geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+                this.geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+                this.geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+
+                // Material para los puntos
+                const material = new THREE.PointsMaterial({
+                    size: 0.2,
+                    vertexColors: true,
+                    transparent: true,
+                    opacity: 0.9,
+                    blending: THREE.AdditiveBlending,
+                    depthWrite: false
+                });
+
+                // Crear objeto de puntos
+                this.pixelObject = new THREE.Points(this.geometry, material);
+                this.pixelObject.position.copy(this.position);
+                
+                // Rotación inicial aleatoria
+                this.pixelObject.rotation.x = Math.random() * Math.PI * 2;
+                this.pixelObject.rotation.y = Math.random() * Math.PI * 2;
+                this.pixelObject.rotation.z = Math.random() * Math.PI * 2;
+                
+                // Añadir a la escena
+                scene.add(this.pixelObject);
+            }
+
+            startFadeOut() {
+                if (!this.isFadingOut && this.pixelObject) {
+                    this.isFadingOut = true;
+                    this.fadeOutStartTime = Date.now();
+                }
+            }
+
+            // 2. SOLUCIÓN PARA LA INTERACCIÓN LIMITADA DE COLORES
+            // Actualizar los colores y animación de toda la galaxia
+            update() {
+                if (this.isDisposed || !this.pixelObject) return false;
+                
+                const now = Date.now();
+                const deltaTime = now - this.lastUpdateTime;
+                this.lastUpdateTime = now;
+                
+                // Prevenir updates muy grandes que podrían congelar
+                if (deltaTime > 1000) {
+                    return true; // Saltar este frame si hay un gran lapso de tiempo
+                }
+                
+                const age = now - this.creationTime;
+                
+                // Rotación suave y orgánica - ralentizada para evitar comportamiento errático
+                this.pixelObject.rotation.x += 0.0005;
+                this.pixelObject.rotation.y += 0.001;
+                this.pixelObject.rotation.z += 0.0007;
+                
+                // Desvanecimiento
+                if (this.isFadingOut) {
+                    const fadeOutDuration = 2000; // 2 segundos de desvanecimiento
+                    const timeSinceFadeStart = now - this.fadeOutStartTime;
+                    const opacity = Math.max(0, 1 - (timeSinceFadeStart / fadeOutDuration));
+                    
+                    if (this.pixelObject && this.pixelObject.material) {
+                        this.pixelObject.material.opacity = opacity;
+                        
+                        // Eliminar cuando se complete el desvanecimiento
+                        if (opacity <= 0) {
+                            this.dispose();
+                            return false;
+                        }
+                    }
+                }
+                else if (age > 30000 && this.pixelObject && this.pixelObject.material) {
+                    const fadeProgress = (age - 30000) / 5000;
+                    this.pixelObject.material.opacity = Math.max(0, 1 - fadeProgress);
+                    
+                    // Eliminar si ha excedido su tiempo de vida
+                    if (age > 35000) {
+                        this.dispose();
+                        return false;
+                    }
+                }
+
+                return true;
+            }
+
+            dispose() {
+                if (this.isDisposed) return; // Evitar disposiciones múltiples
+                
+                this.isDisposed = true;
+                
+                if (this.pixelObject) {
+                    scene.remove(this.pixelObject);
+                    
+                    if (this.pixelObject.geometry) {
+                        this.pixelObject.geometry.dispose();
+                    }
+                    
+                    if (this.pixelObject.material) {
+                        this.pixelObject.material.dispose();
+                    }
+                    
+                    this.pixelObject = null;
+                }
+                
+                this.geometry = null;
+            }
+
+            // Método para añadir más partículas dinámicas y actualizar colores existentes
+            addParticles(note, velocity) {
+                if (!this.pixelObject || !this.pixelObject.geometry || this.isDisposed) return;
+
+                // Obtener los atributos actuales
+                const geometry = this.pixelObject.geometry;
+                const positions = geometry.getAttribute('position');
+                const colors = geometry.getAttribute('color');
+                
+                // No añadir nuevas partículas, solo modificar las existentes para mayor eficiencia
+                
+                // Mapear la nota MIDI a un color (del espectro musical)
+                const noteHue = (note % 12) / 12; // Normalize a 0-1 basado en la clase de la nota
+                const noteOctave = Math.floor(note / 12);
+                const noteSaturation = 0.7 + (velocity / 127) * 0.3; // Mayor velocidad = más saturación
+                const noteLightness = 0.4 + (noteOctave / 10) * 0.4; // Octavas más altas son más brillantes
+                
+                // Color objetivo basado en la nota
+                const targetColor = new THREE.Color().setHSL(noteHue, noteSaturation, noteLightness);
+                
+                // Factor de influencia basado en la velocidad
+                const influenceFactor = (velocity / 127) * 0.2; // 0.0 - 0.2
+                
+                // Número de partículas a afectar (proporcional a la velocidad)
+                const particlesToAffect = Math.floor(positions.count * (0.1 + (velocity / 127) * 0.4));
+                
+                // Tasa de mezcla para cada partícula (para suavizar el cambio)
+                const mixRate = 0.1 + (velocity / 127) * 0.3;
+                
+                // Actualizar colores de las partículas existentes
+                for (let i = 0; i < particlesToAffect; i++) {
+                    // Elegir partículas al azar para afectar
+                    const idx = Math.floor(Math.random() * positions.count);
+                    
+                    // Calcular la distancia al centro para crear un efecto de onda expansiva
+                    const x = positions.array[idx * 3];
+                    const y = positions.array[idx * 3 + 1];
+                    const z = positions.array[idx * 3 + 2];
+                    const distance = Math.sqrt(x*x + y*y + z*z);
+                    
+                    // Ajustar el factor de influencia basado en la distancia
+                    // Las partículas más cercanas al centro tienen más probabilidad de cambiar
+                    const distanceFactor = Math.max(0, 1 - distance / 15);
+                    const finalInfluence = influenceFactor * distanceFactor;
+                    
+                    // Sólo afectar la partícula si el factor final es significativo
+                    if (finalInfluence > 0.01) {
+                        // Obtener color actual
+                        const currentR = colors.array[idx * 3];
+                        const currentG = colors.array[idx * 3 + 1];
+                        const currentB = colors.array[idx * 3 + 2];
+                        const currentColor = new THREE.Color(currentR, currentG, currentB);
+                        
+                        // Mezclar con el color de la nota
+                        const r = currentColor.r * (1 - mixRate) + targetColor.r * mixRate;
+                        const g = currentColor.g * (1 - mixRate) + targetColor.g * mixRate;
+                        const b = currentColor.b * (1 - mixRate) + targetColor.b * mixRate;
+                        
+                        // Actualizar el color
+                        colors.array[idx * 3] = r;
+                        colors.array[idx * 3 + 1] = g;
+                        colors.array[idx * 3 + 2] = b;
+                    }
+                }
+                
+                // Marcar para actualización
+                colors.needsUpdate = true;
+            }
+        }
+        
+        // Clase Galaxy para manejar conjuntos de partículas
+        // Modificar el método addNote en la clase Galaxy para usar PixelGalaxy
+        class Galaxy {
+            constructor(id, initialPosition) {
+                this.id = id;
+                this.position = initialPosition.clone();
+                this.pixelGalaxy = null;
+                this.activeNotes = new Map();
+                this.energy = 0;
+                this.lastNoteTime = Date.now();
+                this.isDisposed = false;
+            }
+
+            addNote(note, velocity) {
+                if (this.isDisposed) return;
+                
+                // Registrar nota activa
+                this.activeNotes.set(note, {
+                    velocity: velocity,
+                    time: Date.now()
+                });
+                
+                // Aumentar energía de la galaxia
+                this.energy = Math.min(1.0, this.energy + (velocity / 127) * 0.2);
+                this.lastNoteTime = Date.now();
+
+                // Si no existe la galaxia de píxeles, crearla
+                if (!this.pixelGalaxy) {
+                    this.pixelGalaxy = new PixelGalaxy(this.id, this.position);
+                }
+
+                // Aplicar el efecto de la nota a la galaxia existente
+                if (this.pixelGalaxy) {
+                    this.pixelGalaxy.addParticles(note, velocity);
+                }
+            }
+
+            removeNote(note) {
+                if (this.isDisposed) return;
+                
+                // Eliminar la nota específica
+                this.activeNotes.delete(note);
+                
+                // Si no quedan notas activas y ha pasado tiempo suficiente, comenzar el desvanecimiento
+                if (this.activeNotes.size === 0 && Date.now() - this.lastNoteTime > 10000) {
+                    if (this.pixelGalaxy) {
+                        // Iniciar desvanecimiento gradual
+                        this.pixelGalaxy.startFadeOut();
+                    }
+                }
+            }
+
+            update() {
+                if (this.isDisposed) return;
+                
+                // Actualizar la galaxia de píxeles si existe
+                if (this.pixelGalaxy) {
+                    const result = this.pixelGalaxy.update();
+                    
+                    // Si la galaxia de píxeles fue eliminada, establecer a null
+                    if (!result) {
+                        this.pixelGalaxy = null;
+                    }
+                }
+                
+                // Disminuir gradualmente la energía con el tiempo
+                const now = Date.now();
+                if (now - this.lastNoteTime > 2000) {
+                    this.energy = Math.max(0, this.energy - 0.005);
+                }
+            }
+
+            updatePosition(newPos) {
+                if (this.isDisposed) return;
+                
+                this.position.copy(newPos);
+                if (this.pixelGalaxy && this.pixelGalaxy.pixelObject) {
+                    this.pixelGalaxy.pixelObject.position.copy(newPos);
+                }
+            }
+
+            dispose() {
+                if (this.isDisposed) return;
+                
+                this.isDisposed = true;
+                
+                // Eliminar la galaxia de píxeles si existe
+                if (this.pixelGalaxy) {
+                    this.pixelGalaxy.dispose();
+                    this.pixelGalaxy = null;
+                }
+                
+                // Limpiar otras referencias
+                this.activeNotes.clear();
+            }
+        }
+
+        function init() {
+            // Crear escena
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x000011);
+            scene.fog = new THREE.FogExp2(0x000011, 0.0004); // Niebla más sutil
+            
+            // Añadir efecto de bloom para mejor apariencia
+            const renderScene = new THREE.Scene();
+            
+            // Configurar cámara
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 10, 20);
+            
+            // Crear renderer
+            renderer = new THREE.WebGLRenderer({ 
+                antialias: true,
+                powerPreference: "high-performance"
+            });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // Limitar para mejor rendimiento
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            document.body.appendChild(renderer.domElement);
+
+            // Iluminación ambiental
+            const ambientLight = new THREE.AmbientLight(0x101020);
+            scene.add(ambientLight);
+
+            // Luz direccional principal
+            const directionalLight = new THREE.DirectionalLight(0x3333ff, 0.4);
+            directionalLight.position.set(1, 1, 1);
+            directionalLight.castShadow = true;
+            scene.add(directionalLight);
+
+            // Luz complementaria
+            const backLight = new THREE.DirectionalLight(0x5544ee, 0.2);
+            backLight.position.set(-1, -1, -1);
+            scene.add(backLight);
+
+            // Crear plano cartesiano con cuadrícula
+            gridHelper = new THREE.GridHelper(1000, 100, 0x333366, 0x222244);
+            scene.add(gridHelper);
+
+            // Crear avatar para representar al usuario
+            createAvatar();
+            
+            // Crear fondo estelar
+            createStarBackground();
+            
+            // Crear galaxia personal
+            galaxies[username] = new Galaxy(username, avatarObject.position.clone());
+
+            // Event listeners
+            window.addEventListener('resize', onWindowResize);
+            document.addEventListener('keydown', onKeyDown);
+            document.addEventListener('keyup', onKeyUp);
+            
+            // Mejorado: Ahora usamos mousedown en el documento, pero verificamos si fue en el menú
+            document.addEventListener('mousedown', onMouseDown);
+            document.addEventListener('mousemove', onMouseMove);
+            document.addEventListener('mouseup', onMouseUp);
+            document.addEventListener('wheel', onMouseWheel);
+            
+            // Prevenir que los clics en el menú cierren el arrastre
+            document.getElementById('settingsMenu').addEventListener('mousedown', function(event) {
+                event.stopPropagation(); // Evita que el evento llegue al documento
+            });
+            
+            // Ocultar las instrucciones después de 20 segundos
+            setTimeout(() => {
+                document.getElementById('info').classList.add('fade-out');
+            }, 20000);
+            
+            // Listener para los botones
+            document.getElementById('btnSettings').addEventListener('click', toggleSettingsMenu);
+            document.getElementById('btnTeleport').addEventListener('click', toggleTeleportPanel);
+            document.getElementById('btnGoToCoords').addEventListener('click', teleportToCoords);
+            document.getElementById('btnPerspective').addEventListener('click', cycleViewMode);
+            
+            document.getElementById('btnFirstPerson').addEventListener('click', () => setViewMode('firstPerson'));
+            document.getElementById('btnThirdPerson').addEventListener('click', () => setViewMode('thirdPerson'));
+            document.getElementById('btnBirdEye').addEventListener('click', () => setViewMode('birdEye'));
+            
+            document.getElementById('connectButton').addEventListener('click', connectToNetwork);
+            document.getElementById('usernameInput').value = username;
+
+            // Inicializar coordenadas de teletransporte con posición actual
+            updateTeleportCoords();
+
+            // Iniciar animación
+            animate();
+        }
+        
+        // Crear avatar para representar al usuario
+        function createAvatar() {
+            // Geometría más detallada
+            const geometry = new THREE.ConeGeometry(1, 2, 8);
+            const material = new THREE.MeshPhongMaterial({ 
+                color: 0x4488ff,
+                emissive: 0x112244,
+                transparent: true,
+                opacity: 0.6,
+                shininess: 30,
+                flatShading: false
+            });
+            
+            avatarObject = new THREE.Mesh(geometry, material);
+            avatarObject.position.set(0, 0, 0);
+            avatarObject.rotation.x = Math.PI / 2; // Apuntar hacia adelante
+            avatarObject.castShadow = true;
+            scene.add(avatarObject);
+            
+            // Añadir un pequeño punto de luz al avatar
+            const avatarLight = new THREE.PointLight(0x4488ff, 0.7, 10);
+            avatarLight.position.set(0, 0, 0);
+            avatarObject.add(avatarLight);
+            
+            // Actualizar posición inicial de la cámara
+            updateCameraPosition();
+        }
+
+        // Crear fondo estelar mejorado
+        function createStarBackground() {
+            // Estrellas lejanas más numerosas
+            const starsGeometry = new THREE.BufferGeometry();
+            const starsMaterial = new THREE.PointsMaterial({
+                color: 0xffffff,
+                size: 0.5,
+                transparent: true,
+                opacity: 0.8,
+                sizeAttenuation: false
+            });
+            
+            const starsVertices = [];
+            for (let i = 0; i < 20000; i++) {
+                const x = THREE.MathUtils.randFloatSpread(2000);
+                const y = THREE.MathUtils.randFloatSpread(2000);
+                const z = THREE.MathUtils.randFloatSpread(2000);
+                starsVertices.push(x, y, z);
+            }
+            
+            starsGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starsVertices, 3));
+            const stars = new THREE.Points(starsGeometry, starsMaterial);
+            scene.add(stars);
+            
+            // Nebulosas distantes mejoradas
+            for (let i = 0; i < 12; i++) {
+                createNebula();
+            }
+        }
+        // Almacenar las nebulosas para animación
+        const nebulaeObjects = [];
+        // Crear una nebulosa con mejor apariencia
+        function createNebula() {
+            const geometry = new THREE.BufferGeometry();
+            const particles = 3000;  // Más partículas para mejor densidad
+            
+            const positions = new Float32Array(particles * 3);
+            const colors = new Float32Array(particles * 3);
+            const sizes = new Float32Array(particles);
+            
+            // Más variedad de colores de nebulosas
+            const nebulaTypes = [
+                {hue: 0.6, sat: 0.7, name: "Azul"},        // Azul
+                {hue: 0.3, sat: 0.5, name: "Verde"},       // Verde
+                {hue: 0.05, sat: 0.8, name: "Naranja"},    // Naranja
+                {hue: 0.75, sat: 0.6, name: "Púrpura"},    // Púrpura
+                {hue: 0.95, sat: 0.7, name: "Rosa"},       // Rosa
+                {hue: 0.15, sat: 0.65, name: "Ámbar"},     // Ámbar
+                {hue: 0.52, sat: 0.5, name: "Turquesa"}    // Turquesa
+            ];
+            
+            const selectedType = nebulaTypes[Math.floor(Math.random() * nebulaTypes.length)];
+            const color = new THREE.Color();
+            color.setHSL(selectedType.hue, selectedType.sat, 0.5);
+            
+            // Posición aleatoria de la nebulosa
+            const position = new THREE.Vector3(
+                THREE.MathUtils.randFloatSpread(1200),
+                THREE.MathUtils.randFloatSpread(1200),
+                THREE.MathUtils.randFloatSpread(1200)
+            );
+            
+            // Crear nebulosa más grande
+            const nebulaSize = 80 + Math.random() * 150;
+            
+            // Definir forma más natural
+            for (let i = 0; i < particles; i++) {
+                // Distribución gaussiana para forma más realista
+                let radius = Math.random();
+                radius = Math.pow(radius, 1.5) * nebulaSize; // Distribución que favorece el centro
+                
+                // Forma esférica con aplastamiento
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.random() * Math.PI;
+                
+                // Distorsión para crear forma de nebulosa
+                const distortion = 0.6 + Math.random() * 0.8;
+                
+                // Coordenadas en polares
+                const x = radius * Math.sin(phi) * Math.cos(theta) * distortion;
+                const y = radius * Math.sin(phi) * Math.sin(theta) * 0.5; // Aplanar en Y
+                const z = radius * Math.cos(phi) * distortion;
+                
+                // Posiciones
+                positions[i * 3] = x;
+                positions[i * 3 + 1] = y;
+                positions[i * 3 + 2] = z;
+                
+                // Color con variación sutil
+                const hue = selectedType.hue + (Math.random() - 0.5) * 0.1;
+                const c = new THREE.Color().setHSL(hue, selectedType.sat, 0.5 + Math.random() * 0.2);
+                colors[i * 3] = c.r;
+                colors[i * 3 + 1] = c.g;
+                colors[i * 3 + 2] = c.b;
+                
+                // Tamaños variables
+                sizes[i] = 2 + Math.pow(Math.random(), 2) * 12;
+            }
+            
+            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+            geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+            
+            // Material con mejor mezcla
+            const material = new THREE.PointsMaterial({
+                size: 1.5,
+                vertexColors: true,
+                transparent: true,
+                opacity: 0.25,
+                blending: THREE.AdditiveBlending,
+                sizeAttenuation: true,
+                depthWrite: false
+            });
+            
+            const nebula = new THREE.Points(geometry, material);
+            
+            // Posición global de la nebulosa
+            nebula.position.copy(position);
+            
+            // Parámetros de rotación y movimiento únicos para cada nebulosa
+            const nebulaData = {
+                object: nebula,
+                // Rotación lenta y aleatoria en cada eje
+                rotationSpeed: {
+                    x: (Math.random() - 0.5) * 0.002,
+                    y: (Math.random() - 0.5) * 0.002,
+                    z: (Math.random() - 0.5) * 0.002
+                },
+                // Movimiento en elipse lento
+                movementPath: {
+                    center: position.clone(),
+                    amplitude: {
+                        x: 20 + Math.random() * 50,
+                        y: 20 + Math.random() * 50,
+                        z: 20 + Math.random() * 50
+                    },
+                    phase: {
+                        x: Math.random() * Math.PI * 2,
+                        y: Math.random() * Math.PI * 2,
+                        z: Math.random() * Math.PI * 2
+                    },
+                    speed: {
+                        x: (Math.random() - 0.5) * 0.005,
+                        y: (Math.random() - 0.5) * 0.005,
+                        z: (Math.random() - 0.5) * 0.005
+                    }
+                }
+            };
+            
+            // Añadir a la escena
+            scene.add(nebula);
+            
+            // Almacenar para animación
+            nebulaeObjects.push(nebulaData);
+        }
+
+        // Modificar la función animate para animar las nebulosas
+        function animateNebulae() {
+            const time = Date.now() * 0.0001; // Tiempo muy lento para movimiento suave
+            
+            nebulaeObjects.forEach(nebulaData => {
+                const { object, rotationSpeed, movementPath } = nebulaData;
+                
+                // Rotación
+                object.rotation.x += rotationSpeed.x;
+                object.rotation.y += rotationSpeed.y;
+                object.rotation.z += rotationSpeed.z;
+                
+                // Movimiento en elipse
+                object.position.x = movementPath.center.x + 
+                    Math.sin(time * movementPath.speed.x + movementPath.phase.x) * movementPath.amplitude.x;
+                
+                object.position.y = movementPath.center.y + 
+                    Math.cos(time * movementPath.speed.y + movementPath.phase.y) * movementPath.amplitude.y;
+                
+                object.position.z = movementPath.center.z + 
+                    Math.sin(time * movementPath.speed.z + movementPath.phase.z) * movementPath.amplitude.z;
+            });
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        
+        
+        function onKeyDown(event) {
+            switch (event.code) {
+                case 'KeyW':
+                    moveForward = true;
+                    break;
+                case 'KeyS':
+                    moveBackward = true;
+                    break;
+                case 'KeyA':
+                    moveLeft = true;
+                    break;
+                case 'KeyD':
+                    moveRight = true;
+                    break;
+                case 'KeyZ':
+                    moveUp = true;
+                    break;
+                case 'KeyX':
+                    moveDown = true;
+                    break;
+                case 'KeyT':
+                    toggleTeleportPanel();
+                    break;
+                case 'KeyP':
+                    cycleViewMode();
+                    break;
+                case 'KeyQ':
+                    rotateCameraLeft = true;
+                    break;
+                case 'KeyE':
+                    rotateCameraRight = true;
+                    break;
+            }
+        }
+
+        function onKeyUp(event) {
+            switch (event.code) {
+                case 'KeyW':
+                    moveForward = false;
+                    break;
+                case 'KeyS':
+                    moveBackward = false;
+                    break;
+                case 'KeyA':
+                    moveLeft = false;
+                    break;
+                case 'KeyD':
+                    moveRight = false;
+                    break;
+                case 'KeyZ':
+                    moveUp = false;
+                    break;
+                case 'KeyX':
+                    moveDown = false;
+                    break;
+                case 'KeyQ':
+                    rotateCameraLeft = false;
+                    break;
+                case 'KeyE':
+                    rotateCameraRight = false;
+                    break;
+            }
+        }
+        
+        // MEJORADO: Control del mouse para mejor navegación
+        function onMouseDown(event) {
+            // Ignorar clics en el menú de configuración
+            if (isClickOnMenu(event)) {
+                return;
+            }
+            
+            if (event.button === 0) { // Solo botón izquierdo
+                isDragging = true;
+                previousMousePosition = {
+                    x: event.clientX,
+                    y: event.clientY
+                };
+            }
+        }
+        
+        function isClickOnMenu(event) {
+            // Verificar si el clic fue dentro del menú de configuración
+            const settingsMenu = document.getElementById('settingsMenu');
+            if (settingsMenu.style.display === 'block') {
+                const rect = settingsMenu.getBoundingClientRect();
+                if (event.clientX >= rect.left && event.clientX <= rect.right &&
+                    event.clientY >= rect.top && event.clientY <= rect.bottom) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        
+        function onMouseUp(event) {
+            isDragging = false;
+        }
+        
+        function onMouseMove(event) {
+            // Si estamos arrastrando (clic sostenido), rotar en horizontal
+            if (isDragging) {
+                const deltaMove = {
+                    x: event.clientX - previousMousePosition.x,
+                    y: event.clientY - previousMousePosition.y
+                };
+                
+                // Rotación horizontal con arrastre
+                yawAngle -= deltaMove.x * mouseSensitivity;
+                
+                // Actualizar la rotación del avatar
+                avatarObject.rotation.y = yawAngle;
+                
+                // Actualizar posición previa
+                previousMousePosition = {
+                    x: event.clientX,
+                    y: event.clientY
+                };
+            }
+            
+            // Siempre permitir mirar arriba/abajo con movimiento vertical del ratón
+            const movementY = event.movementY || 0;
+            if (Math.abs(movementY) > 0.5) { // Umbral para evitar movimientos accidentales
+                pitchAngle -= movementY * mouseSensitivity * 0.5; // Reducido para suavizar
+                pitchAngle = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, pitchAngle));
+            }
+            
+            // Actualizar la posición de la cámara
+            updateCameraPosition();
+        }
+        
+        function onMouseWheel(event) {
+            const zoomSpeed = 0.5;
+            const delta = Math.sign(event.deltaY) * zoomSpeed;
+            
+            if (currentViewMode === 'thirdPerson') {
+                cameraOffset.z += delta;
+                cameraOffset.z = Math.max(5, Math.min(30, cameraOffset.z));
+            } else if (currentViewMode === 'birdEye') {
+                cameraOffset.y += delta;
+                cameraOffset.y = Math.max(10, Math.min(50, cameraOffset.y));
+            }
+            
+            updateCameraPosition();
+        }
+        
+        function updateCameraPosition() {
+            switch (currentViewMode) {
+                case 'firstPerson':
+                    // Primera persona: cámara en la posición del avatar
+                    camera.position.copy(avatarObject.position);
+                    camera.position.y += 1.7; // Altura de los ojos
+                    
+                    // Mirar en la dirección que apunta el avatar con inclinación
+                    camera.quaternion.setFromEuler(new THREE.Euler(pitchAngle, yawAngle, 0, 'YXZ'));
+                    break;
+                    
+                case 'thirdPerson':
+                    // Tercera persona: cámara detrás y arriba del avatar
+                    const offsetVector = new THREE.Vector3(
+                        -Math.sin(yawAngle) * cameraOffset.z,
+                        cameraOffset.y,
+                        -Math.cos(yawAngle) * cameraOffset.z
+                    );
+                    
+                    camera.position.copy(avatarObject.position).add(offsetVector);
+                    
+                    // Mirar hacia el avatar con inclinación
+                    cameraTarget.copy(avatarObject.position);
+                    cameraTarget.y += 1; // Mirar un poco arriba del centro del avatar
+                    camera.lookAt(cameraTarget);
+                    break;
+                    
+                case 'birdEye':
+                    // Vista de pájaro: cámara muy arriba mirando hacia abajo
+                    camera.position.copy(avatarObject.position);
+                    camera.position.y += cameraOffset.y;
+                    camera.position.z += cameraOffset.z * 0.3;
+                    
+                    // Mirar hacia abajo al avatar
+                    cameraTarget.copy(avatarObject.position);
+                    camera.lookAt(cameraTarget);
+                    break;
+            }
+        }
+        
+        function cycleViewMode() {
+            switch (currentViewMode) {
+                case 'firstPerson':
+                    setViewMode('thirdPerson');
+                    break;
+                case 'thirdPerson':
+                    setViewMode('birdEye');
+                    break;
+                case 'birdEye':
+                    setViewMode('firstPerson');
+                    break;
+            }
+        }
+        
+        function setViewMode(mode) {
+            currentViewMode = mode;
+            
+            switch (mode) {
+                case 'firstPerson':
+                    avatarObject.visible = false;
+                    break;
+                case 'thirdPerson':
+                    avatarObject.visible = true;
+                    cameraOffset.set(0, 10, 20);
+                    break;
+                case 'birdEye':
+                    avatarObject.visible = true;
+                    cameraOffset.set(0, 30, 5);
+                    break;
+            }
+            
+            updateCameraPosition();
+        }
+
+        // CORRECCIÓN EN LA FUNCIÓN ANIMATE PARA ASEGURAR UNA ANIMACIÓN FLUIDA
+        function animate() {
+            // Solicitar el siguiente frame de animación al inicio para garantizar continuidad
+            const animationId = requestAnimationFrame(animate);
+            
+            try {
+                const speed = 0.2;
+                const direction = new THREE.Vector3();
+                
+                direction.set(
+                    -Math.sin(yawAngle),
+                    0,
+                    -Math.cos(yawAngle)
+                );
+                
+                const frontVector = direction.clone().normalize().multiplyScalar(speed);
+                const rightVector = new THREE.Vector3(frontVector.z, 0, -frontVector.x);
+                
+                // Aplicar movimiento basado en las teclas presionadas
+                if (moveForward) {
+                    avatarObject.position.add(frontVector);
+                }
+                if (moveBackward) {
+                    avatarObject.position.sub(frontVector);
+                }
+                if (moveLeft) {
+                    avatarObject.position.sub(rightVector);
+                }
+                if (moveRight) {
+                    avatarObject.position.add(rightVector);
+                }
+                if (moveUp) {
+                    avatarObject.position.y += speed;
+                }
+                if (moveDown) {
+                    avatarObject.position.y -= speed;
+                }
+                // Rotación de cámara con teclas Q y E
+                if (rotateCameraLeft) {
+                    yawAngle += cameraRotationSpeed;
+                    avatarObject.rotation.y = yawAngle;
+                }
+                if (rotateCameraRight) {
+                    yawAngle -= cameraRotationSpeed;
+                    avatarObject.rotation.y = yawAngle;
+                }
+                
+                // Actualizar posición de la cámara
+                updateCameraPosition();
+                
+                // Actualizar visualización de coordenadas
+                updateCoordinatesDisplay();
+                
+                // Actualizar galaxia personal
+                if (galaxies[username]) {
+                    galaxies[username].updatePosition(avatarObject.position.clone());
+                    galaxies[username].update();
+                }
+                
+                // Actualizar otras galaxias
+                for (const playerId in otherPlayers) {
+                    if (galaxies[playerId]) {
+                        galaxies[playerId].update();
+                    }
+                }
+                
+                // Actualizar nebulosas - asegúrate de que esta función exista y funcione correctamente
+                if (typeof animateNebulae === 'function') {
+                    animateNebulae();
+                }
+                
+                // Renderizar escena
+                renderer.render(scene, camera);
+            } catch (error) {
+                console.error("Error en el ciclo de animación:", error);
+                // No cancelar la animación en caso de error, dejar que continúe
+            }
+        }
+        
+        function updateCoordinatesDisplay() {
+            const x = avatarObject.position.x.toFixed(2);
+            const y = avatarObject.position.y.toFixed(2);
+            const z = avatarObject.position.z.toFixed(2);
+            coordsElement.textContent = `X: ${x}, Y: ${y}, Z: ${z}`;
+        }
+        
+        function updateTeleportCoords() {
+            document.getElementById('teleportX').value = avatarObject.position.x.toFixed(2);
+            document.getElementById('teleportY').value = avatarObject.position.y.toFixed(2);
+            document.getElementById('teleportZ').value = avatarObject.position.z.toFixed(2);
+        }
+        
+        function toggleTeleportPanel() {
+            const panel = document.getElementById('teleportPanel');
+            if (panel.style.display === 'block') {
+                panel.style.display = 'none';
+            } else {
+                panel.style.display = 'block';
+                updateTeleportCoords();
+            }
+        }
+        
+        function teleportToCoords() {
+            const x = parseFloat(document.getElementById('teleportX').value);
+            const y = parseFloat(document.getElementById('teleportY').value);
+            const z = parseFloat(document.getElementById('teleportZ').value);
+            
+            if (!isNaN(x) && !isNaN(y) && !isNaN(z)) {
+                avatarObject.position.set(x, y, z);
+                updateCameraPosition();
+                document.getElementById('teleportPanel').style.display = 'none';
+            }
+        }
+
+        function toggleSettingsMenu() {
+            const menu = document.getElementById('settingsMenu');
+            if (menu.style.display === 'block') {
+                menu.style.display = 'none';
+            } else {
+                menu.style.display = 'block';
+            }
+        }
+        
+        function connectToNetwork() {
+            const newUsername = document.getElementById('usernameInput').value.trim();
+            if (newUsername && newUsername !== username) {
+                if (galaxies[username]) {
+                    galaxies[username].dispose();
+                    delete galaxies[username];
+                }
+                
+                username = newUsername;
+                galaxies[username] = new Galaxy(username, avatarObject.position.clone());
+                
+                simulateOtherPlayers();
+            }
+            
+            document.getElementById('connectButton').textContent = 'Conectado';
+            document.getElementById('connectButton').disabled = true;
+        }
+        
+        function simulateOtherPlayers() {
+            for (const playerId in otherPlayers) {
+                if (galaxies[playerId]) {
+                    galaxies[playerId].dispose();
+                    delete galaxies[playerId];
+                }
+            }
+            
+            otherPlayers = {};
+            
+            const playerCount = 2 + Math.floor(Math.random() * 3);
+            const playerNames = ["Melodía", "Armonía", "Ritmo", "Sonata", "Sinfónico", "Crescendo"];
+            
+            for (let i = 0; i < playerCount; i++) {
+                const playerId = playerNames[i];
+                
+                const distance = 50 + Math.random() * 250;
+                const angle = Math.random() * Math.PI * 2;
+                
+                const position = new THREE.Vector3(
+                    Math.cos(angle) * distance,
+                    (Math.random() - 0.5) * 50,
+                    Math.sin(angle) * distance
+                );
+                
+                otherPlayers[playerId] = {
+                    position: position,
+                    lastUpdate: Date.now()
+                };
+                
+                galaxies[playerId] = new Galaxy(playerId, position);
+                
+                simulatePlayerNotes(playerId);
+            }
+            
+            updatePlayersList();
+        }
+        
+        function simulatePlayerNotes(playerId) {
+            if (!galaxies[playerId]) return;
+            
+            const note = 48 + Math.floor(Math.random() * 36);
+            const velocity = 50 + Math.floor(Math.random() * 77);
+            
+            galaxies[playerId].addNote(note, velocity);
+            
+            const nextDelay = 200 + Math.random() * 1800;
+            setTimeout(() => {
+                simulatePlayerNotes(playerId);
+            }, nextDelay);
+        }
+        
+        function updatePlayersList() {
+            const container = document.getElementById('playersOnline');
+            container.innerHTML = '';
+            
+            const playerCount = Object.keys(otherPlayers).length + 1;
+            container.innerHTML = `<p>Jugadores en línea: ${playerCount}</p>`;
+            
+            const localItem = document.createElement('div');
+            localItem.className = 'midi-device-item active';
+            localItem.textContent = `${username} (Tú)`;
+            container.appendChild(localItem);
+            
+            for (const playerId in otherPlayers) {
+                const playerItem = document.createElement('div');
+                playerItem.className = 'midi-device-item';
+                playerItem.textContent = playerId;
+                container.appendChild(playerItem);
+            }
+        }
+
+        function initMIDI() {
+            if (navigator.requestMIDIAccess) {
+                navigator.requestMIDIAccess({ sysex: false })
+                    .then(onMIDISuccess, onMIDIFailure);
+            } else {
+                midiStatusElement.textContent = 'Tu navegador no soporta Web MIDI API';
+            }
+        }
+
+        function onMIDISuccess(access) {
+            midiAccess = access;
+            midiStatusElement.textContent = 'MIDI conectado. Selecciona dispositivos en la configuración.';
+            
+            midiAccess.addEventListener('statechange', updateDeviceList);
+            
+            updateDeviceList();
+        }
+
+        function onMIDIFailure(error) {
+            midiStatusElement.textContent = `Error al acceder a MIDI: ${error}`;
+        }
+
+        function updateDeviceList() {
+            if (!midiAccess) return;
+            
+            const container = document.getElementById('midiDevicesContainer');
+            container.innerHTML = '';
+            
+            let deviceCount = 0;
+            
+            midiAccess.inputs.forEach(input => {
+                deviceCount++;
+                
+                const deviceItem = document.createElement('div');
+                deviceItem.className = 'midi-device-item';
+                deviceItem.dataset.id = input.id;
+                
+                const deviceName = document.createElement('span');
+                deviceName.textContent = input.name || `Dispositivo ${deviceCount}`;
+                deviceItem.appendChild(deviceName);
+                
+                const toggleBtn = document.createElement('div');
+                toggleBtn.className = 'toggle-button';
+                if (activeInputs.has(input.id)) {
+                    toggleBtn.classList.add('active');
+                    deviceItem.classList.add('active');
+                }
+                deviceItem.appendChild(toggleBtn);
+                
+                // Mejorado: Manejando separadamente el clic en el dispositivo
+                deviceItem.addEventListener('click', function(e) {
+                    e.stopPropagation(); // Evita que el clic cierre el menú
+                    toggleMIDIInput(input.id);
+                    toggleBtn.classList.toggle('active');
+                    deviceItem.classList.toggle('active');
+                });
+                
+                container.appendChild(deviceItem);
+            });
+            
+            if (deviceCount === 0) {
+                container.innerHTML = '<p>No se encontraron dispositivos MIDI</p>';
+            }
+            
+            midiStatusElement.textContent = `${deviceCount} dispositivo(s) MIDI encontrado(s). ${activeInputs.size} activo(s).`;
+        }
+        
+        function toggleMIDIInput(inputId) {
+            const input = midiAccess.inputs.get(inputId);
+            
+            if (activeInputs.has(inputId)) {
+                input.removeEventListener('midimessage', onMIDIMessage);
+                activeInputs.delete(inputId);
+                console.log(`Dispositivo MIDI desactivado: ${input.name}`);
+            } else {
+                input.addEventListener('midimessage', onMIDIMessage);
+                activeInputs.add(inputId);
+                console.log(`Dispositivo MIDI activado: ${input.name}`);
+            }
+            
+            midiStatusElement.textContent = `${midiAccess.inputs.size} dispositivo(s) MIDI encontrado(s). ${activeInputs.size} activo(s).`;
+        }
+
+        // Mejora en la función onMIDIMessage para manejar eventos MIDI de manera más robusta
+        function onMIDIMessage(event) {
+            try {
+                const command = event.data[0] >> 4;
+                const channel = event.data[0] & 0xf;
+                
+                const note = event.data[1];
+                const velocity = (event.data.length > 2) ? event.data[2] : 0;
+                
+                // Verificar que los datos son válidos
+                if (isNaN(note) || isNaN(velocity)) {
+                    console.warn("Datos MIDI inválidos recibidos:", event.data);
+                    return;
+                }
+                
+                if (command === 9 && velocity > 0) {
+                    // Nota presionada
+                    if (galaxies[username]) {
+                        galaxies[username].addNote(note, velocity);
+                        
+                        // Actualizar estado en UI
+                        midiStatusElement.textContent = `Nota: ${note}, Velocidad: ${velocity}`;
+                    }
+                }
+                else if ((command === 8 || (command === 9 && velocity === 0))) {
+                    // Nota liberada
+                    if (galaxies[username]) {
+                        galaxies[username].removeNote(note);
+                    }
+                }
+            } catch (error) {
+                console.error("Error al procesar mensaje MIDI:", error);
+            }
+        }
+
+        // Iniciar todo cuando el DOM esté cargado
+        document.addEventListener('DOMContentLoaded', function() {
+            init();
+            initMIDI();
+        });
+    </script>
+</body>
+</html>

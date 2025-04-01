@@ -22,10 +22,12 @@
             padding: 10px;
             z-index: 100;
             opacity: 1;
-            transition: opacity 5s ease-in;
+            transition: opacity 2s ease-in;
         }
         .fade-out {
-            opacity: 0;
+            opacity: 0 !important; /* Añadimos !important para forzar la prioridad */
+            transition: opacity 2s ease-in; /* Reducir a 2 segundos para una transición más rápida */
+            pointer-events: none; /* Impedir que se pueda hacer click después del fade */
         }
         #midiStatus {
             position: absolute;
@@ -302,6 +304,288 @@
             <button id="connectButton">Conectar</button>
             <div id="playersOnline"></div>
         </div>
+        <div class="galaxy-settings">
+            <h4>Configuración de Galaxia</h4>
+            <div class="setting-item">
+              <label for="galaxySize">Tamaño de Galaxia:</label>
+              <input type="range" id="galaxySize" min="15" max="50" value="25" class="slider">
+              <span id="galaxySizeValue">25</span>
+            </div>
+            <div class="setting-item">
+              <label for="particleCount">Partículas Afectadas por Nota:</label>
+              <input type="range" id="particleCount" min="5" max="30" value="12" class="slider">
+              <span id="particleCountValue">12%</span>
+            </div>
+            <div class="setting-item">
+              <label for="colorMixing">Intensidad de Mezcla de Color:</label>
+              <input type="range" id="colorMixing" min="30" max="80" value="50" class="slider">
+              <span id="colorMixingValue">50%</span>
+            </div>
+            <div class="setting-item">
+              <label for="expansionTime">Tiempo de Expansión:</label>
+              <input type="range" id="expansionTime" min="2000" max="8000" value="4000" step="1000" class="slider">
+              <span id="expansionTimeValue">4s</span>
+            </div>
+            <div class="setting-item">
+              <label for="fadeoutTime">Tiempo de Inactividad:</label>
+              <input type="range" id="fadeoutTime" min="10000" max="60000" value="20000" step="5000" class="slider">
+              <span id="fadeoutTimeValue">20s</span>
+            </div>
+            <button id="applyGalaxySettings" class="settings-button">Aplicar Configuración</button>
+            <button id="resetGalaxySettings" class="settings-button secondary">Restaurar Valores</button>
+          </div>
+          
+          <!-- Estilos para el panel de configuración -->
+          <style>
+            .galaxy-settings {
+              margin-top: 20px;
+              padding-top: 15px;
+              border-top: 1px solid #557;
+            }
+            
+            .setting-item {
+              margin: 12px 0;
+              display: flex;
+              align-items: center;
+              flex-wrap: wrap;
+            }
+            
+            .setting-item label {
+              width: 100%;
+              margin-bottom: 5px;
+              color: #aaf;
+              font-size: 14px;
+            }
+            
+            .slider {
+              flex: 1;
+              height: 6px;
+              appearance: none;
+              background: rgba(50,50,100,0.6);
+              border-radius: 3px;
+              margin-right: 10px;
+            }
+            
+            .slider::-webkit-slider-thumb {
+              appearance: none;
+              width: 15px;
+              height: 15px;
+              border-radius: 50%;
+              background: #4466dd;
+              cursor: pointer;
+            }
+            
+            .slider::-moz-range-thumb {
+              width: 15px;
+              height: 15px;
+              border-radius: 50%;
+              background: #4466dd;
+              cursor: pointer;
+            }
+            
+            .settings-button {
+              padding: 8px 16px;
+              background-color: #4466dd;
+              color: white;
+              border: none;
+              border-radius: 5px;
+              cursor: pointer;
+              margin-top: 10px;
+              margin-right: 10px;
+            }
+            
+            .settings-button:hover {
+              background-color: #5577ee;
+            }
+            
+            .settings-button.secondary {
+              background-color: #555;
+            }
+            
+            .settings-button.secondary:hover {
+              background-color: #777;
+            }
+          </style>
+          
+          <!-- Script para manejar la configuración de la galaxia -->
+          <script>
+          // Variables para almacenar la configuración de la galaxia
+          let galaxySettings = {
+            size: 25,
+            particleCount: 12,
+            colorMixing: 50,
+            expansionTime: 4000,
+            fadeoutTime: 20000
+          };
+          
+          // Función para inicializar los sliders y eventos
+          function initGalaxySettings() {
+            // Vincular sliders con sus valores de visualización
+            const sliders = {
+                'galaxySize': { elem: document.getElementById('galaxySizeValue'), suffix: '', key: 'size' },
+                'particleCount': { elem: document.getElementById('particleCountValue'), suffix: '%', key: 'particleCount' },
+                'colorMixing': { elem: document.getElementById('colorMixingValue'), suffix: '%', key: 'colorMixing' },
+                'expansionTime': { elem: document.getElementById('expansionTimeValue'), suffix: 's', key: 'expansionTime' },
+                'fadeoutTime': { elem: document.getElementById('fadeoutTimeValue'), suffix: 's', key: 'fadeoutTime' }
+            };
+            
+            // Configurar eventos de los sliders
+            Object.keys(sliders).forEach(sliderId => {
+                const slider = document.getElementById(sliderId);
+                const info = sliders[sliderId];
+                
+                slider.addEventListener('input', () => {
+                let displayValue = slider.value;
+                
+                // Formatear valores especiales
+                if (sliderId === 'expansionTime' || sliderId === 'fadeoutTime') {
+                    displayValue = (slider.value / 1000).toFixed(0);
+                }
+                
+                info.elem.textContent = displayValue + info.suffix;
+                galaxySettings[info.key] = parseInt(slider.value);
+                
+                // Aplicar cambios inmediatamente
+                applyGalaxySettings(false); // Pasar false para no mostrar notificación
+                });
+            });
+            
+            // El botón aplicar ahora solo guarda la configuración
+            document.getElementById('applyGalaxySettings').textContent = 'Guardar Configuración';
+            document.getElementById('applyGalaxySettings').addEventListener('click', saveGalaxySettings);
+            
+            // Botón restaurar valores
+            document.getElementById('resetGalaxySettings').addEventListener('click', resetGalaxySettings);
+            }
+
+            // Modificar la función applyGalaxySettings para aceptar un parámetro de notificación
+            function applyGalaxySettings(showNotification = true) {
+            // Solo guardar en localStorage si se solicita explícitamente (botón)
+            if (showNotification) {
+                localStorage.setItem('musicosmosGalaxySettings', JSON.stringify(galaxySettings));
+            }
+            
+            // Aplicar a configuración global que se usará para nuevas galaxias
+            if (GALAXY_PIXEL_CONFIG) {
+                GALAXY_PIXEL_CONFIG.maxExpansion = galaxySettings.size;
+            }
+            
+            // Aplicar a galaxias existentes
+            for (const galaxyId in galaxies) {
+                const galaxy = galaxies[galaxyId];
+                if (galaxy && galaxy.pixelGalaxy && galaxy.pixelGalaxy.config) {
+                // Actualizar configuración
+                galaxy.pixelGalaxy.config.maxExpansion = galaxySettings.size;
+                galaxy.pixelGalaxy.config.particleAffectedRatio = galaxySettings.particleCount / 100;
+                galaxy.pixelGalaxy.config.colorMixFactor = galaxySettings.colorMixing / 100;
+                galaxy.pixelGalaxy.config.expansionTime = galaxySettings.expansionTime;
+                galaxy.pixelGalaxy.config.inactivityTime = galaxySettings.fadeoutTime;
+                }
+            }
+            
+            // Notificar solo si se solicita (al usar el botón guardar)
+            if (showNotification) {
+                showNotification('Configuración guardada', 2000);
+            }
+            }
+
+            // Nueva función para guardar la configuración
+            function saveGalaxySettings() {
+            localStorage.setItem('musicosmosGalaxySettings', JSON.stringify(galaxySettings));
+            showNotification('Configuración guardada', 2000);
+            }
+          
+          // Función para restaurar valores predeterminados
+          function resetGalaxySettings() {
+            // Restaurar valores por defecto
+            document.getElementById('galaxySize').value = 25;
+            document.getElementById('galaxySizeValue').textContent = '25';
+            document.getElementById('particleCount').value = 12;
+            document.getElementById('particleCountValue').textContent = '12%';
+            document.getElementById('colorMixing').value = 50;
+            document.getElementById('colorMixingValue').textContent = '50%';
+            document.getElementById('expansionTime').value = 4000;
+            document.getElementById('expansionTimeValue').textContent = '4s';
+            document.getElementById('fadeoutTime').value = 20000;
+            document.getElementById('fadeoutTimeValue').textContent = '20s';
+            
+            // Actualizar objeto de configuración
+            galaxySettings = {
+              size: 25,
+              particleCount: 12,
+              colorMixing: 50,
+              expansionTime: 4000,
+              fadeoutTime: 20000
+            };
+            
+            // Aplicar valores restaurados
+            applyGalaxySettings();
+          }
+          
+          // Función auxiliar para mostrar notificaciones
+          function showNotification(message, duration = 3000) {
+            // Crear elemento de notificación si no existe
+            let notification = document.getElementById('notification');
+            if (!notification) {
+              notification = document.createElement('div');
+              notification.id = 'notification';
+              notification.style.position = 'fixed';
+              notification.style.bottom = '20px';
+              notification.style.left = '50%';
+              notification.style.transform = 'translateX(-50%)';
+              notification.style.backgroundColor = 'rgba(68, 102, 221, 0.8)';
+              notification.style.color = 'white';
+              notification.style.padding = '10px 20px';
+              notification.style.borderRadius = '5px';
+              notification.style.zIndex = '1000';
+              notification.style.transition = 'opacity 0.3s';
+              document.body.appendChild(notification);
+            }
+            
+            // Mostrar mensaje
+            notification.textContent = message;
+            notification.style.opacity = '1';
+            
+            // Ocultar después de la duración
+            setTimeout(() => {
+              notification.style.opacity = '0';
+            }, duration);
+          }
+          
+          // Cargar configuración guardada al iniciar
+          function loadGalaxySettings() {
+            const savedSettings = localStorage.getItem('musicosmosGalaxySettings');
+            if (savedSettings) {
+              try {
+                const parsedSettings = JSON.parse(savedSettings);
+                galaxySettings = parsedSettings;
+                
+                // Actualizar sliders con valores guardados
+                document.getElementById('galaxySize').value = galaxySettings.size;
+                document.getElementById('galaxySizeValue').textContent = galaxySettings.size;
+                document.getElementById('particleCount').value = galaxySettings.particleCount;
+                document.getElementById('particleCountValue').textContent = galaxySettings.particleCount + '%';
+                document.getElementById('colorMixing').value = galaxySettings.colorMixing;
+                document.getElementById('colorMixingValue').textContent = galaxySettings.colorMixing + '%';
+                document.getElementById('expansionTime').value = galaxySettings.expansionTime;
+                document.getElementById('expansionTimeValue').textContent = (galaxySettings.expansionTime / 1000) + 's';
+                document.getElementById('fadeoutTime').value = galaxySettings.fadeoutTime;
+                document.getElementById('fadeoutTimeValue').textContent = (galaxySettings.fadeoutTime / 1000) + 's';
+              } catch (e) {
+                console.error('Error al cargar configuración guardada:', e);
+              }
+            }
+          }
+          
+          // Inicializar configuración cuando el DOM esté cargado
+          document.addEventListener('DOMContentLoaded', function() {
+            // Inicializar cuando el DOM esté listo
+            initGalaxySettings();
+            
+            // Cargar configuración guardada
+            loadGalaxySettings();
+          });
+          </script>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -322,6 +606,147 @@
         let pitchAngle = 0;
         let yawAngle = 0;
         let gridHelper;
+
+        function createSharperCircleTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 128;  // Mayor resolución para más nitidez
+            canvas.height = 128;
+            
+            const context = canvas.getContext('2d');
+            
+            // Fondo transparente
+            context.fillStyle = 'rgba(0,0,0,0)';
+            context.fillRect(0, 0, canvas.width, canvas.height);
+            
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            const radius = canvas.width / 2 - 2;
+            
+            // Degradado radial con borde más definido
+            const gradient = context.createRadialGradient(
+                centerX, centerY, 0,
+                centerX, centerY, radius
+            );
+            gradient.addColorStop(0, 'rgba(255,255,255,1)');
+            gradient.addColorStop(0.7, 'rgba(255,255,255,0.9)'); // Mayor opacidad hasta más lejos
+            gradient.addColorStop(0.9, 'rgba(255,255,255,0.3)'); // Caída más rápida al final
+            gradient.addColorStop(1, 'rgba(255,255,255,0)');
+            
+            // Dibujar círculo con degradado
+            context.beginPath();
+            context.arc(centerX, centerY, radius, 0, Math.PI * 2, false);
+            context.fillStyle = gradient;
+            context.fill();
+            
+            // Añadir un resplandor central para más brillo
+            const innerGradient = context.createRadialGradient(
+                centerX, centerY, 0,
+                centerX, centerY, radius * 0.5
+            );
+            innerGradient.addColorStop(0, 'rgba(255,255,255,0.8)');
+            innerGradient.addColorStop(1, 'rgba(255,255,255,0)');
+            
+            context.beginPath();
+            context.arc(centerX, centerY, radius * 0.5, 0, Math.PI * 2, false);
+            context.fillStyle = innerGradient;
+            context.fill();
+            
+            // Crear textura
+            const texture = new THREE.Texture(canvas);
+            texture.needsUpdate = true;
+            
+            return texture;
+        }
+
+        // Añade esta función al inicio del archivo (después de las variables principales)
+        function createCircleTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 64;
+            canvas.height = 64;
+            
+            const context = canvas.getContext('2d');
+            
+            // Fondo transparente
+            context.fillStyle = 'rgba(0,0,0,0)';
+            context.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Dibujar círculo con degradado radial para bordes suaves
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            const radius = canvas.width / 2 - 2;  // -2 para dejar un poco de margen
+            
+            // Crear degradado radial
+            const gradient = context.createRadialGradient(
+                centerX, centerY, 0,
+                centerX, centerY, radius
+            );
+            gradient.addColorStop(0, 'rgba(255,255,255,1)');
+            gradient.addColorStop(0.8, 'rgba(255,255,255,0.8)');
+            gradient.addColorStop(1, 'rgba(255,255,255,0)');
+            
+            // Dibujar círculo con el degradado
+            context.beginPath();
+            context.arc(centerX, centerY, radius, 0, Math.PI * 2, false);
+            context.fillStyle = gradient;
+            context.fill();
+            
+            // Crear textura
+            const texture = new THREE.Texture(canvas);
+            texture.needsUpdate = true;
+            
+            return texture;
+        }
+            
+        // Función para crear una textura circular con bordes más nítidos
+        function createSharperCircleTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 128;
+            canvas.height = 128;
+            
+            const context = canvas.getContext('2d');
+            
+            // Fondo transparente
+            context.fillStyle = 'rgba(0,0,0,0)';
+            context.fillRect(0, 0, canvas.width, canvas.height);
+            
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            const radius = canvas.width / 2 - 2;
+            
+            // Degradado radial con borde más definido
+            const gradient = context.createRadialGradient(
+                centerX, centerY, 0,
+                centerX, centerY, radius
+            );
+            gradient.addColorStop(0, 'rgba(255,255,255,1)');
+            gradient.addColorStop(0.7, 'rgba(255,255,255,0.9)');
+            gradient.addColorStop(0.9, 'rgba(255,255,255,0.3)');
+            gradient.addColorStop(1, 'rgba(255,255,255,0)');
+            
+            context.beginPath();
+            context.arc(centerX, centerY, radius, 0, Math.PI * 2, false);
+            context.fillStyle = gradient;
+            context.fill();
+            
+            // Añadir un resplandor central para más brillo
+            const innerGradient = context.createRadialGradient(
+                centerX, centerY, 0,
+                centerX, centerY, radius * 0.5
+            );
+            innerGradient.addColorStop(0, 'rgba(255,255,255,0.8)');
+            innerGradient.addColorStop(1, 'rgba(255,255,255,0)');
+            
+            context.beginPath();
+            context.arc(centerX, centerY, radius * 0.5, 0, Math.PI * 2, false);
+            context.fillStyle = innerGradient;
+            context.fill();
+            
+            const texture = new THREE.Texture(canvas);
+            texture.needsUpdate = true;
+            
+            return texture;
+        }
+
         
         // Objetos para la cámara
         let avatarObject;
@@ -387,6 +812,7 @@
         // El problema probablemente está en la gestión de la memoria y los objetos
         // Modifica la clase PixelGalaxy para garantizar una limpieza adecuada
 
+        // ---------- Clase PixelGalaxy (actualizada) ------------
         class PixelGalaxy {
             constructor(id, initialPosition) {
                 this.id = id;
@@ -395,88 +821,412 @@
                 this.geometry = new THREE.BufferGeometry();
                 this.isFadingOut = false;
                 this.fadeOutStartTime = 0;
-                this.lastUpdateTime = Date.now(); // Añadir seguimiento del tiempo de actualización
-                this.isDisposed = false; // Flag para controlar si ya ha sido eliminado
+                this.lastUpdateTime = Date.now();
+                this.lastNoteTime = Date.now();
+                this.isDisposed = false;
+                this.pulsePhase = 0;
+                this.armRotation = 0; // Controla la rotación global de los brazos
+                this.activeNotes = {};
+                this.fullyExpanded = false; // Flag para controlar si ya se expandió completamente
+
+                // Nuevo: Color predominante para toda la galaxia
+                // Elegimos un color base coherente en lugar de variedad de colores
+                const colorSchemes = [
+                { name: "Azul Nebulosa", baseHue: 0.6, variation: 0.03 },
+                { name: "Púrpura Espacial", baseHue: 0.75, variation: 0.03 },
+                { name: "Verde Cósmico", baseHue: 0.35, variation: 0.04 },
+                { name: "Rojo Estelar", baseHue: 0.0, variation: 0.03 },
+                { name: "Ámbar Solar", baseHue: 0.12, variation: 0.03 },
+                { name: "Turquesa Profundo", baseHue: 0.48, variation: 0.03 }
+                ];
+                
+                // Seleccionar un esquema de color aleatorio
+                this.colorScheme = colorSchemes[Math.floor(Math.random() * colorSchemes.length)];
+
+                // Obtener configuración personalizada si existe
+                let customSettings = {};
+                try {
+                const savedSettings = localStorage.getItem('musicosmosGalaxySettings');
+                if (savedSettings) {
+                    customSettings = JSON.parse(savedSettings);
+                }
+                } catch (e) {
+                console.error('Error al cargar configuración de galaxia:', e);
+                }
+
+                // Configuración combinada
+                this.config = {
+                particleCount: 7000,
+                baseSize: 0.3,
+                expansionSpeed: 0.0008,
+                spiralSpeed: 0.0008,
+                armRotationSpeed: 0.00015,
+                pulseSpeed: 0.02,
+                // Valores que pueden ser personalizados
+                maxExpansion: customSettings.size || 25,
+                particleAffectedRatio: (customSettings.particleCount || 12) / 100,
+                colorMixFactor: (customSettings.colorMixing || 50) / 100,
+                expansionTime: customSettings.expansionTime || 4000,
+                inactivityTime: customSettings.fadeoutTime || 20000,
+                // Otros valores
+                lifeTime: 25000,
+                fadeOutTime: 5000,
+                verticalScale: 0.9,
+                responseSpeed: 0.3,
+                // Usar un único esquema de color predominante
+                baseHue: this.colorScheme.baseHue,
+                colorVariation: this.colorScheme.variation,
+                // Historial de notas para transición cromática
+                noteHistory: [],
+                maxHistoryLength: 10
+                };
+
                 this.createGalaxy();
+                this.createNebulaCore();
             }
 
             createGalaxy() {
-                const particleCount = 2000; // Número de partículas
+                const particleCount = this.config.particleCount;
                 const positions = new Float32Array(particleCount * 3);
                 const colors = new Float32Array(particleCount * 3);
                 const sizes = new Float32Array(particleCount);
+                const nebulaParams = new Float32Array(particleCount * 4);
                 
-                // Distribución de posiciones en un patrón más uniforme a través de toda la galaxia
+                // Hue base para toda la galaxia (color predominante)
+                const baseHue = this.config.baseHue;
+                
                 for (let i = 0; i < particleCount; i++) {
-                    // Usar distribución esférica mejorada para evitar concentraciones
-                    const u = Math.random();
-                    const v = Math.random();
-                    const theta = u * 2.0 * Math.PI;
-                    const phi = Math.acos(2.0 * v - 1.0);
-                    const r = Math.cbrt(Math.random()) * 15;
-
-                    // Coordenadas esféricas con distorsión
-                    const x = r * Math.sin(phi) * Math.cos(theta);
-                    const y = r * Math.sin(phi) * Math.sin(theta) * 0.3; // Aplanar en Y
-                    const z = r * Math.cos(phi);
-
-                    // Añadir distorsión para forma más orgánica
-                    const distortion = 1 + Math.random() * 0.3;
-                    positions[i * 3] = x * distortion;
-                    positions[i * 3 + 1] = y * distortion;
-                    positions[i * 3 + 2] = z * distortion;
-
-                    // Asignar colores iniciales - distribuir a lo largo de todo el espectro de color
-                    const hue = i / particleCount; // Distribución uniforme de colores en el círculo cromático
-                    const saturation = 0.6 + Math.random() * 0.4;
-                    const lightness = 0.4 + Math.random() * 0.2;
-                    
-                    const color = new THREE.Color().setHSL(hue, saturation, lightness);
-                    colors[i * 3] = color.r;
-                    colors[i * 3 + 1] = color.g;
-                    colors[i * 3 + 2] = color.b;
-
-                    // Tamaño más variado para mayor riqueza visual
-                    sizes[i] = 0.2 * (0.5 + Math.pow(Math.random(), 2) * 1.5);
+                // Generar un radio aleatorio con sesgo y un ángulo base aleatorio
+                const distFromCenter = Math.pow(Math.random(), 0.5) * this.config.maxExpansion;
+                const baseAngle = Math.random() * Math.PI * 2;
+                const speedVar = Math.random();
+                const phaseOffset = Math.random() * Math.PI * 2;
+                
+                nebulaParams[i * 4] = distFromCenter;
+                nebulaParams[i * 4 + 1] = baseAngle;
+                nebulaParams[i * 4 + 2] = speedVar;
+                nebulaParams[i * 4 + 3] = phaseOffset;
+                
+                // Posición inicial concentrada
+                positions[i * 3] = (Math.random() - 0.5) * 0.2;
+                positions[i * 3 + 1] = (Math.random() - 0.5) * 0.1;
+                positions[i * 3 + 2] = (Math.random() - 0.5) * 0.2;
+                
+                // Pequeña variación sutil en el color (dentro del mismo tono)
+                const hueVar = (Math.random() - 0.5) * this.config.colorVariation;
+                const saturation = 0.7 + Math.random() * 0.3; // Alta saturación
+                const lightness = 0.4 + Math.random() * 0.2; // Brillo moderado
+                
+                // Aplicar color con pequeña variación pero mismo tono base
+                const color = new THREE.Color().setHSL(
+                    (baseHue + hueVar) % 1.0, 
+                    saturation, 
+                    lightness
+                );
+                
+                colors[i * 3] = color.r;
+                colors[i * 3 + 1] = color.g;
+                colors[i * 3 + 2] = color.b;
+                
+                sizes[i] = this.config.baseSize * (0.6 + Math.random() * 0.6);
                 }
-
-                // Configurar atributos del buffer
+                
                 this.geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
                 this.geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
                 this.geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
-
-                // Material para los puntos
+                this.nebulaParams = nebulaParams;
+                
+                // Usar textura circular nítida
+                const circleTexture = createSharperCircleTexture();
                 const material = new THREE.PointsMaterial({
-                    size: 0.2,
-                    vertexColors: true,
-                    transparent: true,
-                    opacity: 0.9,
-                    blending: THREE.AdditiveBlending,
-                    depthWrite: false
+                size: this.config.baseSize,
+                vertexColors: true,
+                transparent: true,
+                opacity: 0.9,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false,
+                map: circleTexture,
+                alphaTest: 0.05
                 });
-
-                // Crear objeto de puntos
+                
                 this.pixelObject = new THREE.Points(this.geometry, material);
                 this.pixelObject.position.copy(this.position);
-                
-                // Rotación inicial aleatoria
-                this.pixelObject.rotation.x = Math.random() * Math.PI * 2;
-                this.pixelObject.rotation.y = Math.random() * Math.PI * 2;
-                this.pixelObject.rotation.z = Math.random() * Math.PI * 2;
-                
-                // Añadir a la escena
                 scene.add(this.pixelObject);
             }
 
-            startFadeOut() {
-                if (!this.isFadingOut && this.pixelObject) {
-                    this.isFadingOut = true;
-                    this.fadeOutStartTime = Date.now();
+            createNebulaCore() {
+                if (!avatarObject) return;
+                
+                // Shaders para efectos de glow mejorados
+                const glowVertexShader = `
+                varying vec3 vNormal;
+                varying vec3 vViewPosition;
+                
+                void main() {
+                    vNormal = normalize(normalMatrix * normal);
+                    vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+                    vViewPosition = -mvPosition.xyz;
+                    gl_Position = projectionMatrix * mvPosition;
                 }
+                `;
+                
+                const glowFragmentShader = `
+                uniform vec3 glowColor;
+                uniform float pulseIntensity;
+                uniform float timeFactor;
+                
+                varying vec3 vNormal;
+                varying vec3 vViewPosition;
+                
+                void main() {
+                    // Calcular intensidad basada en ángulo de visión
+                    float intensity = pow(0.7 - dot(normalize(vViewPosition), vNormal), 2.0);
+                    // Añadir efecto de pulso
+                    intensity *= 1.0 + 0.3 * sin(timeFactor);
+                    // Aplicar intensidad de pulso global
+                    intensity *= pulseIntensity;
+                    
+                    gl_FragColor = vec4(glowColor, 1.0) * intensity;
+                }
+                `;
+                
+                // Guardar material original
+                this.originalAvatarMaterial = avatarObject.material.clone();
+                
+                // Crear shader personalizado para el avatar
+                const avatarUniforms = {
+                glowColor: { value: new THREE.Color(0x4488ff) },
+                pulseIntensity: { value: 1.0 },
+                timeFactor: { value: 0.0 }
+                };
+                
+                const avatarMaterial = new THREE.ShaderMaterial({
+                uniforms: avatarUniforms,
+                vertexShader: glowVertexShader,
+                fragmentShader: glowFragmentShader,
+                transparent: true,
+                blending: THREE.AdditiveBlending,
+                side: THREE.FrontSide
+                });
+                
+                avatarObject.material = avatarMaterial;
+                this.avatarUniforms = avatarUniforms;
+                
+                // Inner glow mejorado con shaders
+                const innerGlowGeometry = new THREE.SphereGeometry(1.05, 24, 24);
+                const innerGlowUniforms = {
+                glowColor: { value: new THREE.Color(0xccffff) },
+                pulseIntensity: { value: 0.8 },
+                timeFactor: { value: 0.0 }
+                };
+                
+                const innerGlowMaterial = new THREE.ShaderMaterial({
+                uniforms: innerGlowUniforms,
+                vertexShader: glowVertexShader,
+                fragmentShader: glowFragmentShader,
+                transparent: true,
+                blending: THREE.AdditiveBlending
+                });
+                
+                this.innerGlow = new THREE.Mesh(innerGlowGeometry, innerGlowMaterial);
+                this.innerGlowUniforms = innerGlowUniforms;
+                avatarObject.add(this.innerGlow);
+                
+                // Outer glow expansivo con shader
+                const outerGlowGeometry = new THREE.SphereGeometry(this.config.maxExpansion / 10, 24, 24);
+                const outerGlowUniforms = {
+                glowColor: { value: new THREE.Color(0x3366ff) },
+                pulseIntensity: { value: 0.4 },
+                timeFactor: { value: 0.0 }
+                };
+                
+                const outerGlowMaterial = new THREE.ShaderMaterial({
+                uniforms: outerGlowUniforms,
+                vertexShader: glowVertexShader,
+                fragmentShader: glowFragmentShader,
+                transparent: true,
+                blending: THREE.AdditiveBlending,
+                side: THREE.BackSide
+                });
+                
+                this.outerGlowEffect = new THREE.Mesh(outerGlowGeometry, outerGlowMaterial);
+                this.outerGlowUniforms = outerGlowMaterial.uniforms;
+                avatarObject.add(this.outerGlowEffect);
+                
+                // Luz central sutil
+                this.coreLight = new THREE.PointLight(0xffffff, 1.0, 15);
+                this.coreLight.position.set(0, 0, 0);
+                avatarObject.add(this.coreLight);
             }
 
-            // 2. SOLUCIÓN PARA LA INTERACCIÓN LIMITADA DE COLORES
-            // Actualizar los colores y animación de toda la galaxia
+            pulseCore(note, velocity) {
+                if (!this.innerGlow || !this.outerGlowEffect || !this.coreLight) return;
+                
+                const now = Date.now();
+                this.lastNoteTime = now;
+                
+                // Mapeo de nota MIDI a color (0-127 -> 0-1 en hue)
+                const noteHue = (note % 12) / 12;
+                const octave = Math.floor(note / 12) - 1;
+                
+                // Registrar o actualizar nota en activeNotes
+                if (!this.activeNotes[note]) {
+                    // Nueva nota
+                    this.activeNotes[note] = {
+                    velocity: velocity,
+                    startTime: now,
+                    duration: 0,
+                    lastUpdateTime: now,
+                    color: new THREE.Color().setHSL(
+                        noteHue, 
+                        0.85, 
+                        0.55 + (octave / 8) * 0.25
+                    )
+                    };
+                } else {
+                    // Nota ya activa, actualizar
+                    this.activeNotes[note].lastUpdateTime = now;
+                    // Calcular duración acumulada
+                    this.activeNotes[note].duration += now - this.activeNotes[note].lastUpdateTime;
+                    this.activeNotes[note].velocity = velocity; // Actualizar velocidad
+                }
+                
+                // Calcular color basado en la nota
+                const noteColor = new THREE.Color().setHSL(
+                    noteHue, 
+                    0.85, 
+                    0.55 + (octave / 8) * 0.25
+                );
+                
+                const intensity = 0.7 + (velocity / 127) * 1.3;
+                
+                // Actualizar uniforms del shader del avatar
+                if (this.avatarUniforms) {
+                    this.avatarUniforms.glowColor.value = noteColor;
+                    this.avatarUniforms.pulseIntensity.value = intensity;
+                    this.avatarUniforms.timeFactor.value = now * 0.003;
+                }
+                
+                // Inner glow: mezcla con blanco usando uniforms
+                if (this.innerGlowUniforms) {
+                    const mixedColor = new THREE.Color(0xffffff).lerp(noteColor, 0.4);
+                    this.innerGlowUniforms.glowColor.value = mixedColor;
+                    this.innerGlowUniforms.pulseIntensity.value = 0.2 + (velocity / 127) * 0.2;
+                    this.innerGlowUniforms.timeFactor.value = now * 0.003;
+                }
+                
+                // Outer glow con uniforms
+                if (this.outerGlowUniforms) {
+                    this.outerGlowUniforms.glowColor.value = noteColor;
+                    this.outerGlowUniforms.pulseIntensity.value = 0.2 + (velocity / 127) * 0.2;
+                    this.outerGlowUniforms.timeFactor.value = now * 0.002;
+                }
+                
+                // Luz central
+                if (this.coreLight) {
+                    this.coreLight.color = noteColor;
+                    this.coreLight.intensity = 0.8 + intensity * 0.4;
+                    this.coreLight.distance = 10 + (velocity / 127) * 10;
+                }
+                
+                // Si esta nota se ha sostenido por mucho tiempo o tocado repetidamente,
+                // actualizar una variable de control
+                this.updateDominantNote();
+                }
+
+                // Agregar método para encontrar la nota dominante
+                updateDominantNote() {
+                const now = Date.now();
+                let maxDuration = 0;
+                let mostPlayedNote = null;
+                
+                // Buscar nota sostenida más tiempo o tocada más veces
+                for (const noteId in this.activeNotes) {
+                    const note = this.activeNotes[noteId];
+                    
+                    // Calcular duración acumulada
+                    const noteDuration = note.duration + (now - note.lastUpdateTime);
+                    
+                    if (noteDuration > maxDuration) {
+                    maxDuration = noteDuration;
+                    mostPlayedNote = noteId;
+                    }
+                }
+                
+                // Si hay una nota dominante que supera un umbral (3 segundos)
+                const dominanceThreshold = 3000; // 3 segundos
+                if (maxDuration > dominanceThreshold && mostPlayedNote) {
+                    this.dominantNote = parseInt(mostPlayedNote);
+                    this.dominantNoteIntensity = Math.min(1, maxDuration / 10000); // Máximo en 10 segundos
+                } else {
+                    this.dominantNoteIntensity = this.dominantNoteIntensity ? 
+                    Math.max(0, this.dominantNoteIntensity - 0.01) : 0; // Disminuir gradualmente
+                }
+                }
+
+            addParticles(note, velocity) {
+                if (!this.pixelObject || !this.pixelObject.geometry || this.isDisposed) return;
+                
+                // Si estaba desvaneciéndose, cancelar el desvanecimiento
+                if (this.isFadingOut) {
+                this.isFadingOut = false;
+                if (this.pixelObject.material) {
+                    this.pixelObject.material.opacity = 0.9; // Restaurar opacidad
+                }
+                }
+                
+                // Activar efectos del núcleo según nota MIDI
+                this.pulseCore(note, velocity);
+                this.lastNoteTime = Date.now();
+                
+                // Sólo transformar una porción de partículas con cada nota
+                // para crear transición gradual y mantener coherencia visual
+                const positions = this.geometry.attributes.position;
+                const colors = this.geometry.attributes.color;
+                
+                // Mapeo de nota a tono de color
+                const noteHue = (note % 12) / 12;
+                const octave = Math.floor(note / 12) - 1;
+                const noteColor = new THREE.Color().setHSL(
+                noteHue, 
+                0.85, 
+                0.55 + (octave / 8) * 0.25
+                );
+                
+                // Mayor cantidad de partículas para respuesta más rápida
+                // Usar ratio personalizado
+                const transformCount = Math.floor(positions.count * this.config.particleAffectedRatio * (velocity / 127));
+                
+                // Transformar un subconjunto de partículas
+                for (let i = 0; i < transformCount; i++) {
+                // Elegir partícula aleatoria
+                const idx = Math.floor(Math.random() * positions.count);
+                
+                // Transformar color gradualmente
+                const currentColor = new THREE.Color(
+                    colors.array[idx * 3],
+                    colors.array[idx * 3 + 1],
+                    colors.array[idx * 3 + 2]
+                );
+                
+                // Mezcla más agresiva hacia el nuevo color para respuesta más rápida
+                // Usar factor personalizado
+                const baseFactor = this.config.colorMixFactor;
+                const mixFactor = baseFactor + (velocity / 127) * (baseFactor * 0.8);
+                const newColor = currentColor.lerp(noteColor, mixFactor);
+                
+                colors.array[idx * 3] = newColor.r;
+                colors.array[idx * 3 + 1] = newColor.g;
+                colors.array[idx * 3 + 2] = newColor.b;
+                }
+                
+                // Marcar colores para actualización
+                colors.needsUpdate = true;
+                
+                // Extender la vida de la galaxia
+                this.creationTime = Math.min(this.creationTime, Date.now() - 5000); // Mantener expansión
+            }
+
             update() {
                 if (this.isDisposed || !this.pixelObject) return false;
                 
@@ -484,142 +1234,206 @@
                 const deltaTime = now - this.lastUpdateTime;
                 this.lastUpdateTime = now;
                 
-                // Prevenir updates muy grandes que podrían congelar
-                if (deltaTime > 1000) {
-                    return true; // Saltar este frame si hay un gran lapso de tiempo
+                if (deltaTime > 1000) return true;
+                
+                // Actualizar factor de tiempo para shaders
+                if (this.avatarUniforms) {
+                this.avatarUniforms.timeFactor.value = now * 0.003;
+                }
+                if (this.innerGlowUniforms) {
+                this.innerGlowUniforms.timeFactor.value = now * 0.003;
+                }
+                if (this.outerGlowUniforms) {
+                this.outerGlowUniforms.timeFactor.value = now * 0.002;
                 }
                 
                 const age = now - this.creationTime;
+                const timeSinceLastNote = now - this.lastNoteTime;
                 
-                // Rotación suave y orgánica - ralentizada para evitar comportamiento errático
-                this.pixelObject.rotation.x += 0.0005;
-                this.pixelObject.rotation.y += 0.001;
-                this.pixelObject.rotation.z += 0.0007;
+                // Usar tiempo de expansión personalizado
+                let normalizedAge = Math.min(1, age / this.config.expansionTime);
                 
-                // Desvanecimiento
+                // Si ya se expandió completamente una vez, mantenerla expandida
+                if (normalizedAge >= 1) {
+                this.fullyExpanded = true;
+                }
+                
+                // Si está completamente expandida, mantener la expansión
+                if (this.fullyExpanded) {
+                normalizedAge = 1;
+                }
+                
+                // Incrementar el pulso y la rotación global de los brazos
+                this.pulsePhase += this.config.pulseSpeed * deltaTime / 1000;
+                this.armRotation += this.config.armRotationSpeed * deltaTime;
+                const pulseValue = 0.5 + Math.sin(this.pulsePhase) * 0.5;
+                
+                // Usar un factor de expansión basado en normalizedAge
+                const maxScale = this.config.maxExpansion / 20;
+                const currentScale = Math.min(maxScale, normalizedAge * maxScale);
+                const positions = this.geometry.attributes.position;
+                const sizes = this.geometry.attributes.size;
+                
+                // Actualizar cada partícula para lograr un efecto espiral animado
+                for (let i = 0; i < positions.count; i++) {
+                const dist = this.nebulaParams[i * 4] * currentScale;
+                const baseAngle = this.nebulaParams[i * 4 + 1];
+                const speedVar = this.nebulaParams[i * 4 + 2];
+                const phaseVar = this.nebulaParams[i * 4 + 3];
+                
+                // Calcular rotación diferencial y sumar la rotación global (se resta para invertir sentido)
+                const rotationIncrement = this.config.spiralSpeed * deltaTime * (0.5 + speedVar);
+                const angle = baseAngle + rotationIncrement - this.armRotation + Math.sin(this.pulsePhase * 0.2 + phaseVar * 10) * 0.1;
+                
+                // Onda radial
+                const wavePhase = this.pulsePhase * 0.3 + phaseVar * Math.PI * 2;
+                const waveMagnitude = 0.25 * speedVar * dist;
+                const orbitRadius = dist * (0.7 + Math.sin(wavePhase) * 0.3);
+                
+                positions.array[i * 3] = Math.cos(angle) * orbitRadius + Math.cos(wavePhase * 1.5) * waveMagnitude;
+                positions.array[i * 3 + 2] = Math.sin(angle) * orbitRadius + Math.sin(wavePhase * 1.5) * waveMagnitude;
+                
+                // Componente Y para dar volumen
+                const yOffset = speedVar * currentScale * this.config.verticalScale;
+                const yWave = Math.sin(wavePhase + angle) * waveMagnitude * 0.8;
+                positions.array[i * 3 + 1] = yOffset + yWave;
+                
+                // Tamaño con pulso
+                const pulseFactor = 1 + pulseValue * 0.1 * (0.5 + phaseVar);
+                sizes.array[i] = this.config.baseSize * (0.5 + normalizedAge * 0.5) * pulseFactor;
+                }
+                
+                positions.needsUpdate = true;
+                sizes.needsUpdate = true;
+                
+                // Manejo del fade out - usar tiempo de inactividad personalizado
                 if (this.isFadingOut) {
-                    const fadeOutDuration = 2000; // 2 segundos de desvanecimiento
-                    const timeSinceFadeStart = now - this.fadeOutStartTime;
-                    const opacity = Math.max(0, 1 - (timeSinceFadeStart / fadeOutDuration));
+                const fadeOutDuration = this.config.fadeOutTime;
+                const timeSinceFade = now - this.fadeOutStartTime;
+                const opacity = Math.max(0, 1 - (timeSinceFade / fadeOutDuration));
+                
+                if (this.pixelObject && this.pixelObject.material) {
+                    this.pixelObject.material.opacity = opacity;
                     
-                    if (this.pixelObject && this.pixelObject.material) {
-                        this.pixelObject.material.opacity = opacity;
-                        
-                        // Eliminar cuando se complete el desvanecimiento
-                        if (opacity <= 0) {
-                            this.dispose();
-                            return false;
-                        }
+                    // Solo eliminar después de un tiempo mucho mayor sin interacción
+                    if (opacity <= 0 && timeSinceLastNote > 30000) {
+                    scene.remove(this.pixelObject);
+                    this.dispose();
+                    return false;
                     }
                 }
-                else if (age > 30000 && this.pixelObject && this.pixelObject.material) {
-                    const fadeProgress = (age - 30000) / 5000;
-                    this.pixelObject.material.opacity = Math.max(0, 1 - fadeProgress);
-                    
-                    // Eliminar si ha excedido su tiempo de vida
-                    if (age > 35000) {
-                        this.dispose();
-                        return false;
-                    }
+                } else if (timeSinceLastNote > this.config.inactivityTime) {  // Usar tiempo personalizado
+                this.isFadingOut = true;
+                this.fadeOutStartTime = now;
                 }
-
+                
                 return true;
             }
 
+            removeNote(note) {
+                if (this.isDisposed) return;
+                delete this.activeNotes[note];
+                if (Object.keys(this.activeNotes).length === 0 && Date.now() - this.lastNoteTime > 15000) {
+                if (!this.isFadingOut) {
+                    this.isFadingOut = true;
+                    this.fadeOutStartTime = Date.now();
+                }
+                }
+            }
+
             dispose() {
-                if (this.isDisposed) return; // Evitar disposiciones múltiples
-                
+                if (this.isDisposed) return;
                 this.isDisposed = true;
                 
+                // Desvanecimiento gradual del halo del avatar
+                const startTime = Date.now();
+                const fadeDuration = 2000; // 2 segundos de desvanecimiento
+                
+                const fadeOutAvatarGlow = () => {
+                const now = Date.now();
+                const elapsed = now - startTime;
+                const progress = Math.min(1, elapsed / fadeDuration);
+                
+                // Reducir gradualmente la intensidad del shader del avatar
+                if (this.avatarUniforms && this.avatarUniforms.pulseIntensity) {
+                    this.avatarUniforms.pulseIntensity.value = 1.0 * (1 - progress);
+                }
+                
+                // Reducir la intensidad del inner glow
+                if (this.innerGlowUniforms && this.innerGlowUniforms.pulseIntensity) {
+                    this.innerGlowUniforms.pulseIntensity.value = 0.8 * (1 - progress);
+                }
+                
+                // Reducir la intensidad del outer glow
+                if (this.outerGlowUniforms && this.outerGlowUniforms.pulseIntensity) {
+                    this.outerGlowUniforms.pulseIntensity.value = 0.4 * (1 - progress);
+                }
+                
+                // Reducir la intensidad de la luz
+                if (this.coreLight) {
+                    this.coreLight.intensity = 1.0 * (1 - progress);
+                }
+                
+                if (progress < 1) {
+                    // Continuar el desvanecimiento
+                    requestAnimationFrame(fadeOutAvatarGlow);
+                } else {
+                    // Completar la limpieza una vez finalizado el desvanecimiento
+                    this.completeDispose();
+                }
+                };
+                
+                // Iniciar el desvanecimiento
+                fadeOutAvatarGlow();
+            }
+            
+            // Método para completar la limpieza después del desvanecimiento
+            completeDispose() {
+                if (this.originalAvatarMaterial && avatarObject) {
+                avatarObject.material = this.originalAvatarMaterial;
+                this.originalAvatarMaterial = null;
+                }
+                
+                if (this.innerGlow && avatarObject) {
+                avatarObject.remove(this.innerGlow);
+                this.innerGlow.material.dispose();
+                this.innerGlow.geometry.dispose();
+                this.innerGlow = null;
+                }
+                
+                if (this.outerGlowEffect && avatarObject) {
+                avatarObject.remove(this.outerGlowEffect);
+                this.outerGlowEffect.material.dispose();
+                this.outerGlowEffect.geometry.dispose();
+                this.outerGlowEffect = null;
+                }
+                
+                if (this.coreLight && avatarObject) {
+                avatarObject.remove(this.coreLight);
+                this.coreLight = null;
+                }
+                
                 if (this.pixelObject) {
-                    scene.remove(this.pixelObject);
-                    
-                    if (this.pixelObject.geometry) {
-                        this.pixelObject.geometry.dispose();
-                    }
-                    
-                    if (this.pixelObject.material) {
-                        this.pixelObject.material.dispose();
-                    }
-                    
-                    this.pixelObject = null;
+                scene.remove(this.pixelObject);
+                if (this.pixelObject.geometry) this.pixelObject.geometry.dispose();
+                if (this.pixelObject.material) {
+                    if (this.pixelObject.material.map) this.pixelObject.material.map.dispose();
+                    this.pixelObject.material.dispose();
+                }
+                this.pixelObject = null;
                 }
                 
                 this.geometry = null;
+                this.nebulaParams = null;
+                this.avatarUniforms = null;
+                this.innerGlowUniforms = null;
+                this.outerGlowUniforms = null;
             }
-
-            // Método para añadir más partículas dinámicas y actualizar colores existentes
-            addParticles(note, velocity) {
-                if (!this.pixelObject || !this.pixelObject.geometry || this.isDisposed) return;
-
-                // Obtener los atributos actuales
-                const geometry = this.pixelObject.geometry;
-                const positions = geometry.getAttribute('position');
-                const colors = geometry.getAttribute('color');
-                
-                // No añadir nuevas partículas, solo modificar las existentes para mayor eficiencia
-                
-                // Mapear la nota MIDI a un color (del espectro musical)
-                const noteHue = (note % 12) / 12; // Normalize a 0-1 basado en la clase de la nota
-                const noteOctave = Math.floor(note / 12);
-                const noteSaturation = 0.7 + (velocity / 127) * 0.3; // Mayor velocidad = más saturación
-                const noteLightness = 0.4 + (noteOctave / 10) * 0.4; // Octavas más altas son más brillantes
-                
-                // Color objetivo basado en la nota
-                const targetColor = new THREE.Color().setHSL(noteHue, noteSaturation, noteLightness);
-                
-                // Factor de influencia basado en la velocidad
-                const influenceFactor = (velocity / 127) * 0.2; // 0.0 - 0.2
-                
-                // Número de partículas a afectar (proporcional a la velocidad)
-                const particlesToAffect = Math.floor(positions.count * (0.1 + (velocity / 127) * 0.4));
-                
-                // Tasa de mezcla para cada partícula (para suavizar el cambio)
-                const mixRate = 0.1 + (velocity / 127) * 0.3;
-                
-                // Actualizar colores de las partículas existentes
-                for (let i = 0; i < particlesToAffect; i++) {
-                    // Elegir partículas al azar para afectar
-                    const idx = Math.floor(Math.random() * positions.count);
-                    
-                    // Calcular la distancia al centro para crear un efecto de onda expansiva
-                    const x = positions.array[idx * 3];
-                    const y = positions.array[idx * 3 + 1];
-                    const z = positions.array[idx * 3 + 2];
-                    const distance = Math.sqrt(x*x + y*y + z*z);
-                    
-                    // Ajustar el factor de influencia basado en la distancia
-                    // Las partículas más cercanas al centro tienen más probabilidad de cambiar
-                    const distanceFactor = Math.max(0, 1 - distance / 15);
-                    const finalInfluence = influenceFactor * distanceFactor;
-                    
-                    // Sólo afectar la partícula si el factor final es significativo
-                    if (finalInfluence > 0.01) {
-                        // Obtener color actual
-                        const currentR = colors.array[idx * 3];
-                        const currentG = colors.array[idx * 3 + 1];
-                        const currentB = colors.array[idx * 3 + 2];
-                        const currentColor = new THREE.Color(currentR, currentG, currentB);
-                        
-                        // Mezclar con el color de la nota
-                        const r = currentColor.r * (1 - mixRate) + targetColor.r * mixRate;
-                        const g = currentColor.g * (1 - mixRate) + targetColor.g * mixRate;
-                        const b = currentColor.b * (1 - mixRate) + targetColor.b * mixRate;
-                        
-                        // Actualizar el color
-                        colors.array[idx * 3] = r;
-                        colors.array[idx * 3 + 1] = g;
-                        colors.array[idx * 3 + 2] = b;
-                    }
-                }
-                
-                // Marcar para actualización
-                colors.needsUpdate = true;
             }
-        }
         
         // Clase Galaxy para manejar conjuntos de partículas
         // Modificar el método addNote en la clase Galaxy para usar PixelGalaxy
+       // ---------- Clase Galaxy (actualizada) ------------
         class Galaxy {
             constructor(id, initialPosition) {
                 this.id = id;
@@ -633,87 +1447,60 @@
 
             addNote(note, velocity) {
                 if (this.isDisposed) return;
-                
-                // Registrar nota activa
-                this.activeNotes.set(note, {
-                    velocity: velocity,
-                    time: Date.now()
-                });
-                
-                // Aumentar energía de la galaxia
+                this.activeNotes.set(note, { velocity: velocity, time: Date.now() });
                 this.energy = Math.min(1.0, this.energy + (velocity / 127) * 0.2);
                 this.lastNoteTime = Date.now();
-
-                // Si no existe la galaxia de píxeles, crearla
                 if (!this.pixelGalaxy) {
-                    this.pixelGalaxy = new PixelGalaxy(this.id, this.position);
+                this.pixelGalaxy = new PixelGalaxy(this.id, this.position);
                 }
-
-                // Aplicar el efecto de la nota a la galaxia existente
                 if (this.pixelGalaxy) {
-                    this.pixelGalaxy.addParticles(note, velocity);
+                this.pixelGalaxy.addParticles(note, velocity);
                 }
             }
 
             removeNote(note) {
                 if (this.isDisposed) return;
-                
-                // Eliminar la nota específica
                 this.activeNotes.delete(note);
-                
-                // Si no quedan notas activas y ha pasado tiempo suficiente, comenzar el desvanecimiento
                 if (this.activeNotes.size === 0 && Date.now() - this.lastNoteTime > 10000) {
-                    if (this.pixelGalaxy) {
-                        // Iniciar desvanecimiento gradual
-                        this.pixelGalaxy.startFadeOut();
-                    }
+                if (this.pixelGalaxy && !this.pixelGalaxy.isFadingOut) {
+                    this.pixelGalaxy.isFadingOut = true;
+                    this.pixelGalaxy.fadeOutStartTime = Date.now();
+                }
                 }
             }
 
             update() {
                 if (this.isDisposed) return;
-                
-                // Actualizar la galaxia de píxeles si existe
                 if (this.pixelGalaxy) {
-                    const result = this.pixelGalaxy.update();
-                    
-                    // Si la galaxia de píxeles fue eliminada, establecer a null
-                    if (!result) {
-                        this.pixelGalaxy = null;
-                    }
+                const result = this.pixelGalaxy.update();
+                if (!result) {
+                    this.pixelGalaxy = null;
                 }
-                
-                // Disminuir gradualmente la energía con el tiempo
+                }
                 const now = Date.now();
                 if (now - this.lastNoteTime > 2000) {
-                    this.energy = Math.max(0, this.energy - 0.005);
+                this.energy = Math.max(0, this.energy - 0.005);
                 }
             }
 
             updatePosition(newPos) {
                 if (this.isDisposed) return;
-                
                 this.position.copy(newPos);
                 if (this.pixelGalaxy && this.pixelGalaxy.pixelObject) {
-                    this.pixelGalaxy.pixelObject.position.copy(newPos);
+                this.pixelGalaxy.pixelObject.position.copy(newPos);
                 }
             }
 
             dispose() {
                 if (this.isDisposed) return;
-                
                 this.isDisposed = true;
-                
-                // Eliminar la galaxia de píxeles si existe
                 if (this.pixelGalaxy) {
-                    this.pixelGalaxy.dispose();
-                    this.pixelGalaxy = null;
+                this.pixelGalaxy.dispose();
+                this.pixelGalaxy = null;
                 }
-                
-                // Limpiar otras referencias
                 this.activeNotes.clear();
             }
-        }
+            }
 
         function init() {
             // Crear escena
@@ -785,8 +1572,17 @@
             
             // Ocultar las instrucciones después de 20 segundos
             setTimeout(() => {
-                document.getElementById('info').classList.add('fade-out');
-            }, 20000);
+                const infoElement = document.getElementById('info');
+                if (infoElement) {
+                    infoElement.classList.add('fade-out');
+                    
+                    // Opcional: remover completamente el elemento después de la transición
+                    setTimeout(() => {
+                        infoElement.style.display = 'none';
+                    }, 2100); // Un poco más que el tiempo de transición
+                }
+            }, 8000);
+
             
             // Listener para los botones
             document.getElementById('btnSettings').addEventListener('click', toggleSettingsMenu);
@@ -810,8 +1606,11 @@
         
         // Crear avatar para representar al usuario
         function createAvatar() {
-            // Geometría más detallada
-            const geometry = new THREE.ConeGeometry(1, 2, 8);
+            // Cambiar la geometría de cono a esfera
+            // El radio de la esfera sería aproximadamente 1 para mantener un tamaño similar
+            const geometry = new THREE.SphereGeometry(1, 16, 12); // Esfera con 16 segmentos horizontales y 12 verticales
+            
+            // Mantener el mismo material con las propiedades existentes
             const material = new THREE.MeshPhongMaterial({ 
                 color: 0x4488ff,
                 emissive: 0x112244,
@@ -823,11 +1622,15 @@
             
             avatarObject = new THREE.Mesh(geometry, material);
             avatarObject.position.set(0, 0, 0);
-            avatarObject.rotation.x = Math.PI / 2; // Apuntar hacia adelante
+            
+            // No necesitamos rotar la esfera en el eje X como hacíamos con el cono
+            // ya que una esfera es simétrica en todos los ejes
+            // avatarObject.rotation.x = Math.PI / 2; // Esta línea se elimina
+            
             avatarObject.castShadow = true;
             scene.add(avatarObject);
             
-            // Añadir un pequeño punto de luz al avatar
+            // Añadir un pequeño punto de luz al avatar (mantener igual)
             const avatarLight = new THREE.PointLight(0x4488ff, 0.7, 10);
             avatarLight.position.set(0, 0, 0);
             avatarObject.add(avatarLight);
@@ -994,7 +1797,7 @@
 
         // Modificar la función animate para animar las nebulosas
         function animateNebulae() {
-            const time = Date.now() * 0.0001; // Tiempo muy lento para movimiento suave
+            const time = Date.now() * 0.001; // Tiempo muy lento para movimiento suave
             
             nebulaeObjects.forEach(nebulaData => {
                 const { object, rotationSpeed, movementPath } = nebulaData;
@@ -1024,13 +1827,26 @@
 
         
         
+        
+        // 1. INTERCAMBIAR LA ASIGNACIÓN DE TECLAS EN LA FUNCIÓN onKeyDown
+
         function onKeyDown(event) {
             switch (event.code) {
                 case 'KeyW':
-                    moveForward = true;
+                    // En tercera persona, W activa moveBackward en lugar de moveForward
+                    if (currentViewMode === 'thirdPerson') {
+                        moveBackward = true;
+                    } else {
+                        moveForward = true;
+                    }
                     break;
                 case 'KeyS':
-                    moveBackward = true;
+                    // En tercera persona, S activa moveForward en lugar de moveBackward
+                    if (currentViewMode === 'thirdPerson') {
+                        moveForward = true;
+                    } else {
+                        moveBackward = true;
+                    }
                     break;
                 case 'KeyA':
                     moveLeft = true;
@@ -1062,10 +1878,20 @@
         function onKeyUp(event) {
             switch (event.code) {
                 case 'KeyW':
-                    moveForward = false;
+                    // En tercera persona, W controla moveBackward
+                    if (currentViewMode === 'thirdPerson') {
+                        moveBackward = false;
+                    } else {
+                        moveForward = false;
+                    }
                     break;
                 case 'KeyS':
-                    moveBackward = false;
+                    // En tercera persona, S controla moveForward
+                    if (currentViewMode === 'thirdPerson') {
+                        moveForward = false;
+                    } else {
+                        moveBackward = false;
+                    }
                     break;
                 case 'KeyA':
                     moveLeft = false;
@@ -1132,6 +1958,11 @@
                 // Rotación horizontal con arrastre
                 yawAngle -= deltaMove.x * mouseSensitivity;
                 
+                // MODIFICACIÓN: Aplicar también la rotación vertical mientras se arrastra
+                // en todas las vistas, no solo en primera persona
+                pitchAngle -= deltaMove.y * mouseSensitivity * 0.5;
+                pitchAngle = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, pitchAngle));
+                
                 // Actualizar la rotación del avatar
                 avatarObject.rotation.y = yawAngle;
                 
@@ -1142,12 +1973,16 @@
                 };
             }
             
+            // Ya no necesitamos este bloque porque ahora procesamos la mirada vertical
+            // mientras se arrastra el mouse en el bloque anterior
+            /*
             // Siempre permitir mirar arriba/abajo con movimiento vertical del ratón
             const movementY = event.movementY || 0;
             if (Math.abs(movementY) > 0.5) { // Umbral para evitar movimientos accidentales
                 pitchAngle -= movementY * mouseSensitivity * 0.5; // Reducido para suavizar
                 pitchAngle = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, pitchAngle));
             }
+            */
             
             // Actualizar la posición de la cámara
             updateCameraPosition();
@@ -1182,9 +2017,9 @@
                 case 'thirdPerson':
                     // Tercera persona: cámara detrás y arriba del avatar
                     const offsetVector = new THREE.Vector3(
-                        -Math.sin(yawAngle) * cameraOffset.z,
-                        cameraOffset.y,
-                        -Math.cos(yawAngle) * cameraOffset.z
+                        -Math.sin(yawAngle) * Math.cos(pitchAngle) * cameraOffset.z,
+                        cameraOffset.y + Math.sin(pitchAngle) * cameraOffset.z,
+                        -Math.cos(yawAngle) * Math.cos(pitchAngle) * cameraOffset.z
                     );
                     
                     camera.position.copy(avatarObject.position).add(offsetVector);
@@ -1196,17 +2031,34 @@
                     break;
                     
                 case 'birdEye':
-                    // Vista de pájaro: cámara muy arriba mirando hacia abajo
-                    camera.position.copy(avatarObject.position);
-                    camera.position.y += cameraOffset.y;
-                    camera.position.z += cameraOffset.z * 0.3;
+                    // MODIFICADO: Vista de pájaro con soporte para rotación
+                    // Posicionar la cámara en alto sobre el avatar pero permitiendo rotación
+                    const birdEyeHeight = cameraOffset.y;
+                    const birdEyeRadius = cameraOffset.z * 0.5; // Reducido para estar más centrado
                     
-                    // Mirar hacia abajo al avatar
+                    // Usar la rotación horizontal (yawAngle) para girar alrededor del avatar
+                    camera.position.copy(avatarObject.position);
+                    camera.position.y += birdEyeHeight;
+                    camera.position.x += Math.sin(yawAngle) * birdEyeRadius;
+                    camera.position.z += Math.cos(yawAngle) * birdEyeRadius;
+                    
+                    // Usar pitchAngle para ajustar la inclinación (limitada para vista de pájaro)
+                    const birdEyePitch = Math.max(-Math.PI/2, Math.min(-Math.PI/6, pitchAngle));
+                    
+                    // Calcular el punto de mira con base en la rotación
                     cameraTarget.copy(avatarObject.position);
+                    // Ajustar el punto de mira para que mire "adelante" del avatar según la rotación
+                    cameraTarget.x += Math.sin(yawAngle) * 5 * Math.sin(birdEyePitch + Math.PI/2);
+                    cameraTarget.z += Math.cos(yawAngle) * 5 * Math.sin(birdEyePitch + Math.PI/2);
+                    // Ajustar altura del punto de mira según inclinación
+                    cameraTarget.y += Math.cos(birdEyePitch + Math.PI/2) * 5;
+                    
                     camera.lookAt(cameraTarget);
                     break;
             }
         }
+
+
         
         function cycleViewMode() {
             switch (currentViewMode) {
@@ -1228,98 +2080,66 @@
             switch (mode) {
                 case 'firstPerson':
                     avatarObject.visible = false;
+                    // No reset pitchAngle
                     break;
                 case 'thirdPerson':
                     avatarObject.visible = true;
                     cameraOffset.set(0, 10, 20);
+                    // No reset pitchAngle
                     break;
                 case 'birdEye':
                     avatarObject.visible = true;
                     cameraOffset.set(0, 30, 5);
-                    break;
-            }
-            
-            updateCameraPosition();
-        }
+                    // Ajustar pitchAngle para vista de pájaro (mira hacia abajo)
+                    pitchAngle = -Math.PI/3; // Aproximadamente -60 grados
+            break;
+    }
+    
+    updateCameraPosition();
+}
 
         // CORRECCIÓN EN LA FUNCIÓN ANIMATE PARA ASEGURAR UNA ANIMACIÓN FLUIDA
         function animate() {
-            // Solicitar el siguiente frame de animación al inicio para garantizar continuidad
-            const animationId = requestAnimationFrame(animate);
-            
+            requestAnimationFrame(animate);
             try {
                 const speed = 0.2;
-                const direction = new THREE.Vector3();
-                
-                direction.set(
-                    -Math.sin(yawAngle),
-                    0,
-                    -Math.cos(yawAngle)
-                );
-                
+                const direction = new THREE.Vector3(-Math.sin(yawAngle), 0, -Math.cos(yawAngle));
                 const frontVector = direction.clone().normalize().multiplyScalar(speed);
                 const rightVector = new THREE.Vector3(frontVector.z, 0, -frontVector.x);
-                
-                // Aplicar movimiento basado en las teclas presionadas
-                if (moveForward) {
-                    avatarObject.position.add(frontVector);
-                }
-                if (moveBackward) {
-                    avatarObject.position.sub(frontVector);
-                }
-                if (moveLeft) {
-                    avatarObject.position.sub(rightVector);
-                }
-                if (moveRight) {
-                    avatarObject.position.add(rightVector);
-                }
-                if (moveUp) {
-                    avatarObject.position.y += speed;
-                }
-                if (moveDown) {
-                    avatarObject.position.y -= speed;
-                }
-                // Rotación de cámara con teclas Q y E
-                if (rotateCameraLeft) {
-                    yawAngle += cameraRotationSpeed;
-                    avatarObject.rotation.y = yawAngle;
-                }
-                if (rotateCameraRight) {
-                    yawAngle -= cameraRotationSpeed;
-                    avatarObject.rotation.y = yawAngle;
-                }
-                
-                // Actualizar posición de la cámara
+
+                // Movimiento del avatar según teclas
+                if (moveForward) avatarObject.position.add(frontVector);
+                if (moveBackward) avatarObject.position.sub(frontVector);
+                if (moveLeft) avatarObject.position.sub(rightVector);
+                if (moveRight) avatarObject.position.add(rightVector);
+                if (moveUp) avatarObject.position.y += speed;
+                if (moveDown) avatarObject.position.y -= speed;
+                if (rotateCameraLeft) { yawAngle += cameraRotationSpeed; avatarObject.rotation.y = yawAngle; }
+                if (rotateCameraRight) { yawAngle -= cameraRotationSpeed; avatarObject.rotation.y = yawAngle; }
+
                 updateCameraPosition();
-                
-                // Actualizar visualización de coordenadas
                 updateCoordinatesDisplay();
-                
+
                 // Actualizar galaxia personal
                 if (galaxies[username]) {
-                    galaxies[username].updatePosition(avatarObject.position.clone());
-                    galaxies[username].update();
+                galaxies[username].updatePosition(avatarObject.position.clone());
+                galaxies[username].update();
                 }
-                
-                // Actualizar otras galaxias
+                // Actualizar galaxias de otros jugadores
                 for (const playerId in otherPlayers) {
-                    if (galaxies[playerId]) {
-                        galaxies[playerId].update();
-                    }
+                if (galaxies[playerId]) {
+                    galaxies[playerId].update();
                 }
-                
-                // Actualizar nebulosas - asegúrate de que esta función exista y funcione correctamente
-                if (typeof animateNebulae === 'function') {
-                    animateNebulae();
                 }
-                
-                // Renderizar escena
+                // Actualizar nebulosas de fondo (si las tienes)
+                if (typeof animateNebulae === 'function') animateNebulae();
+
                 renderer.render(scene, camera);
             } catch (error) {
                 console.error("Error en el ciclo de animación:", error);
-                // No cancelar la animación en caso de error, dejar que continúe
             }
-        }
+            }
+
         
         function updateCoordinatesDisplay() {
             const x = avatarObject.position.x.toFixed(2);
@@ -1547,19 +2367,16 @@
                 const note = event.data[1];
                 const velocity = (event.data.length > 2) ? event.data[2] : 0;
                 
-                // Verificar que los datos son válidos
-                if (isNaN(note) || isNaN(velocity)) {
-                    console.warn("Datos MIDI inválidos recibidos:", event.data);
-                    return;
-                }
+                if (isNaN(note) || isNaN(velocity)) return;
                 
                 if (command === 9 && velocity > 0) {
                     // Nota presionada
                     if (galaxies[username]) {
                         galaxies[username].addNote(note, velocity);
                         
-                        // Actualizar estado en UI
-                        midiStatusElement.textContent = `Nota: ${note}, Velocidad: ${velocity}`;
+                        // Feedback visual mejorado
+                        const noteName = getNoteNameFromMIDI(note);
+                        midiStatusElement.textContent = `Nota: ${noteName} (${note}), Velocidad: ${velocity}`;
                     }
                 }
                 else if ((command === 8 || (command === 9 && velocity === 0))) {
@@ -1572,6 +2389,9 @@
                 console.error("Error al procesar mensaje MIDI:", error);
             }
         }
+
+
+            
 
         // Iniciar todo cuando el DOM esté cargado
         document.addEventListener('DOMContentLoaded', function() {

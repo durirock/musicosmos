@@ -1935,70 +1935,68 @@
                 }
                 }
 
-                addParticles(note, velocity) {
-                    if (!this.pixelObject || !this.pixelObject.geometry || this.isDisposed) return;
-                    
-                    // Si estaba desvaneciéndose, cancelar el desvanecimiento
-                    if (this.isFadingOut) {
-                        this.isFadingOut = false;
-                        if (this.pixelObject.material) {
-                            this.pixelObject.material.opacity = 0.9; // Restaurar opacidad
-                        }
-                    }
-                    
-                    // Activar efectos del núcleo según nota MIDI
-                    this.pulseCore(note, velocity);
-                    this.lastNoteTime = Date.now();
-                    
-                    // Mapeo de nota a tono de color
-                    const noteHue = (note % 12) / 12;
-                    const octave = Math.floor(note / 12) - 1;
-                    const noteColor = new THREE.Color().setHSL(
-                        noteHue, 
-                        0.85, 
-                        0.55 + (octave / 8) * 0.25
-                    );
-                    
-                    // Modificar el tamaño de expansión basado en la velocidad
-                    // Rango de expansión: 15 (mínimo) a 50 (máximo)
-                    const dynamicExpansion = 15 + (velocity / 127) * 35;
-                    this.config.maxExpansion = dynamicExpansion;
-                    
-                    const positions = this.geometry.attributes.position;
-                    const colors = this.geometry.attributes.color;
-                    
-                    // Mayor cantidad de partículas para respuesta más rápida
-                    // Usar ratio personalizado y velocidad
-                    const transformCount = Math.floor(positions.count * this.config.particleAffectedRatio * (velocity / 127));
-                    
-                    // Transformar un subconjunto de partículas
-                    for (let i = 0; i < transformCount; i++) {
-                        // Elegir partícula aleatoria
-                        const idx = Math.floor(Math.random() * positions.count);
-                        
-                        // Transformar color gradualmente
-                        const currentColor = new THREE.Color(
-                            colors.array[idx * 3],
-                            colors.array[idx * 3 + 1],
-                            colors.array[idx * 3 + 2]
-                        );
-                        
-                        // Mezcla más agresiva hacia el nuevo color para respuesta más rápida
-                        const baseFactor = this.config.colorMixFactor;
-                        const mixFactor = baseFactor + (velocity / 127) * (baseFactor * 0.8);
-                        const newColor = currentColor.lerp(noteColor, mixFactor);
-                        
-                        colors.array[idx * 3] = newColor.r;
-                        colors.array[idx * 3 + 1] = newColor.g;
-                        colors.array[idx * 3 + 2] = newColor.b;
-                    }
-                    
-                    // Marcar colores para actualización
-                    colors.needsUpdate = true;
-                    
-                    // Extender la vida de la galaxia
-                    this.creationTime = Math.min(this.creationTime, Date.now() - 5000); // Mantener expansión
+            addParticles(note, velocity) {
+                if (!this.pixelObject || !this.pixelObject.geometry || this.isDisposed) return;
+                
+                // Si estaba desvaneciéndose, cancelar el desvanecimiento
+                if (this.isFadingOut) {
+                this.isFadingOut = false;
+                if (this.pixelObject.material) {
+                    this.pixelObject.material.opacity = 0.9; // Restaurar opacidad
                 }
+                }
+                
+                // Activar efectos del núcleo según nota MIDI
+                this.pulseCore(note, velocity);
+                this.lastNoteTime = Date.now();
+                
+                // Sólo transformar una porción de partículas con cada nota
+                // para crear transición gradual y mantener coherencia visual
+                const positions = this.geometry.attributes.position;
+                const colors = this.geometry.attributes.color;
+                
+                // Mapeo de nota a tono de color
+                const noteHue = (note % 12) / 12;
+                const octave = Math.floor(note / 12) - 1;
+                const noteColor = new THREE.Color().setHSL(
+                noteHue, 
+                0.85, 
+                0.55 + (octave / 8) * 0.25
+                );
+                
+                // Mayor cantidad de partículas para respuesta más rápida
+                // Usar ratio personalizado
+                const transformCount = Math.floor(positions.count * this.config.particleAffectedRatio * (velocity / 127));
+                
+                // Transformar un subconjunto de partículas
+                for (let i = 0; i < transformCount; i++) {
+                // Elegir partícula aleatoria
+                const idx = Math.floor(Math.random() * positions.count);
+                
+                // Transformar color gradualmente
+                const currentColor = new THREE.Color(
+                    colors.array[idx * 3],
+                    colors.array[idx * 3 + 1],
+                    colors.array[idx * 3 + 2]
+                );
+                
+                // Mezcla más agresiva hacia el nuevo color para respuesta más rápida
+                // Usar factor personalizado
+                const baseFactor = this.config.colorMixFactor;
+                const mixFactor = baseFactor + (velocity / 127) * (baseFactor * 0.8);
+                const newColor = currentColor.lerp(noteColor, mixFactor);
+                
+                colors.array[idx * 3] = newColor.r;
+                colors.array[idx * 3 + 1] = newColor.g;
+                colors.array[idx * 3 + 2] = newColor.b;
+                }
+                
+                // Marcar colores para actualización
+                colors.needsUpdate = true;
+                
+                // Extender la vida de la galaxia
+                this.creationTime = Math.min(this.creationTime, Date.now() - 5000); // Mantener expansión
+            }
 
             update() {
                 if (this.isDisposed || !this.pixelObject) return false;

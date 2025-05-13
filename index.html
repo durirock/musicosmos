@@ -458,41 +458,51 @@
             document.getElementById('resetGalaxySettings').addEventListener('click', resetGalaxySettings);
             }
 
-            // Modificar la función applyGalaxySettings para aceptar un parámetro de notificación
+            // Modificar la función // Modificar la función applyGalaxySettings para aceptar un parámetro de notificación
             function applyGalaxySettings(showNotification = true) {
-            // Solo guardar en localStorage si se solicita explícitamente (botón)
-            if (showNotification) {
-                localStorage.setItem('musicosmosGalaxySettings', JSON.stringify(galaxySettings));
-            }
-            
-            // Aplicar a configuración global que se usará para nuevas galaxias
-            if (GALAXY_PIXEL_CONFIG) {
-                GALAXY_PIXEL_CONFIG.maxExpansion = galaxySettings.size;
-            }
-            
-            // Aplicar a galaxias existentes
-            for (const galaxyId in galaxies) {
-                const galaxy = galaxies[galaxyId];
-                if (galaxy && galaxy.pixelGalaxy && galaxy.pixelGalaxy.config) {
-                // Actualizar configuración
-                galaxy.pixelGalaxy.config.maxExpansion = galaxySettings.size;
-                galaxy.pixelGalaxy.config.particleAffectedRatio = galaxySettings.particleCount / 100;
-                galaxy.pixelGalaxy.config.colorMixFactor = galaxySettings.colorMixing / 100;
-                galaxy.pixelGalaxy.config.expansionTime = galaxySettings.expansionTime;
-                galaxy.pixelGalaxy.config.inactivityTime = galaxySettings.fadeoutTime;
+                // Solo guardar en localStorage si se solicita explícitamente (botón)
+                if (showNotification) {
+                    localStorage.setItem('musicosmosGalaxySettings', JSON.stringify(galaxySettings));
                 }
-            }
-            
-            // Notificar solo si se solicita (al usar el botón guardar)
-            if (showNotification) {
-                showNotification('Configuración guardada', 2000);
-            }
-            }
-
-            // Nueva función para guardar la configuración
-            function saveGalaxySettings() {
-            localStorage.setItem('musicosmosGalaxySettings', JSON.stringify(galaxySettings));
-            showNotification('Configuración guardada', 2000);
+                
+                // Aplicar a configuración global que se usará para nuevas galaxias
+                if (GALAXY_PIXEL_CONFIG) {
+                    GALAXY_PIXEL_CONFIG.maxExpansion = galaxySettings.size;
+                }
+                
+                // Aplicar a galaxias existentes
+                for (const galaxyId in galaxies) {
+                    const galaxy = galaxies[galaxyId];
+                    if (galaxy && galaxy.pixelGalaxy) {
+                        // Crear objeto de configuración nueva
+                        const newConfig = {
+                            maxExpansion: galaxySettings.size,
+                            particleAffectedRatio: galaxySettings.particleCount / 100,
+                            colorMixFactor: galaxySettings.colorMixing / 100,
+                            expansionTime: galaxySettings.expansionTime,
+                            inactivityTime: galaxySettings.fadeoutTime
+                        };
+                        
+                        // Usar el nuevo método updateConfig si está disponible
+                        if (galaxy.pixelGalaxy.updateConfig) {
+                            galaxy.pixelGalaxy.updateConfig(newConfig);
+                        } 
+                        // Compatibilidad con la implementación anterior
+                        else if (galaxy.pixelGalaxy.config) {
+                            // Actualizar configuración
+                            galaxy.pixelGalaxy.config.maxExpansion = galaxySettings.size;
+                            galaxy.pixelGalaxy.config.particleAffectedRatio = galaxySettings.particleCount / 100;
+                            galaxy.pixelGalaxy.config.colorMixFactor = galaxySettings.colorMixing / 100;
+                            galaxy.pixelGalaxy.config.expansionTime = galaxySettings.expansionTime;
+                            galaxy.pixelGalaxy.config.inactivityTime = galaxySettings.fadeoutTime;
+                        }
+                    }
+                }
+                
+                // Notificar solo si se solicita (al usar el botón guardar)
+                if (showNotification) {
+                    showNotification('Configuración guardada', 2000);
+                }
             }
           
           // Función para restaurar valores predeterminados
@@ -609,6 +619,7 @@
         let proceduralGenerator; // Añade esta línea
         let hyperspaceEffect;
         let hyperspaceModeActive = false;
+        
 
         // Añade esto después de las variables principales (let scene, camera, renderer; etc.)
 
@@ -1600,60 +1611,101 @@
                 this.activeNotes = {};
                 this.fullyExpanded = false; // Flag para controlar si ya se expandió completamente
 
+                // Sistema de transiciones fluidas
+                this.baseExpansionSize = 25; // Tamaño base configurado por el slider
+                this.targetExpansion = 25;   // Tamaño objetivo (afectado por MIDI y slider)
+                this.currentExpansion = 25;  // Tamaño actual interpolado
+                this.expansionTransitionSpeed = 0.008; // Velocidad de transición
+                this.minExpansion = 15;      // Tamaño mínimo (velocidad alta)
+                this.maxExpansion = 50;      // Tamaño máximo (velocidad baja)
+                this.midiScaleFactor = 1.0;  // Factor de escala MIDI (0.6-1.4)
+
                 // Nuevo: Color predominante para toda la galaxia
-                // Elegimos un color base coherente en lugar de variedad de colores
                 const colorSchemes = [
-                { name: "Azul Nebulosa", baseHue: 0.6, variation: 0.03 },
-                { name: "Púrpura Espacial", baseHue: 0.75, variation: 0.03 },
-                { name: "Verde Cósmico", baseHue: 0.35, variation: 0.04 },
-                { name: "Rojo Estelar", baseHue: 0.0, variation: 0.03 },
-                { name: "Ámbar Solar", baseHue: 0.12, variation: 0.03 },
-                { name: "Turquesa Profundo", baseHue: 0.48, variation: 0.03 }
+                    { name: "Azul Nebulosa", baseHue: 0.6, variation: 0.03 },
+                    { name: "Púrpura Espacial", baseHue: 0.75, variation: 0.03 },
+                    { name: "Verde Cósmico", baseHue: 0.35, variation: 0.04 },
+                    { name: "Rojo Estelar", baseHue: 0.0, variation: 0.03 },
+                    { name: "Ámbar Solar", baseHue: 0.12, variation: 0.03 },
+                    { name: "Turquesa Profundo", baseHue: 0.48, variation: 0.03 }
                 ];
                 
-                // Seleccionar un esquema de color aleatorio
                 this.colorScheme = colorSchemes[Math.floor(Math.random() * colorSchemes.length)];
 
                 // Obtener configuración personalizada si existe
                 let customSettings = {};
                 try {
-                const savedSettings = localStorage.getItem('musicosmosGalaxySettings');
-                if (savedSettings) {
-                    customSettings = JSON.parse(savedSettings);
-                }
+                    const savedSettings = localStorage.getItem('musicosmosGalaxySettings');
+                    if (savedSettings) {
+                        customSettings = JSON.parse(savedSettings);
+                    }
                 } catch (e) {
-                console.error('Error al cargar configuración de galaxia:', e);
+                    console.error('Error al cargar configuración de galaxia:', e);
                 }
 
                 // Configuración combinada
                 this.config = {
-                particleCount: 7000,
-                baseSize: 0.3,
-                expansionSpeed: 0.0008,
-                spiralSpeed: 0.0008,
-                armRotationSpeed: 0.00015,
-                pulseSpeed: 0.02,
-                // Valores que pueden ser personalizados
-                maxExpansion: customSettings.size || 25,
-                particleAffectedRatio: (customSettings.particleCount || 12) / 100,
-                colorMixFactor: (customSettings.colorMixing || 50) / 100,
-                expansionTime: customSettings.expansionTime || 4000,
-                inactivityTime: customSettings.fadeoutTime || 20000,
-                // Otros valores
-                lifeTime: 25000,
-                fadeOutTime: 5000,
-                verticalScale: 0.9,
-                responseSpeed: 0.3,
-                // Usar un único esquema de color predominante
-                baseHue: this.colorScheme.baseHue,
-                colorVariation: this.colorScheme.variation,
-                // Historial de notas para transición cromática
-                noteHistory: [],
-                maxHistoryLength: 10
+                    particleCount: 7000,
+                    baseSize: 0.3,
+                    expansionSpeed: 0.0008,
+                    spiralSpeed: 0.0008,
+                    armRotationSpeed: 0.00015,
+                    pulseSpeed: 0.02,
+                    // Valores que pueden ser personalizados
+                    maxExpansion: customSettings.size || 25,
+                    particleAffectedRatio: (customSettings.particleCount || 12) / 100,
+                    colorMixFactor: (customSettings.colorMixing || 50) / 100,
+                    expansionTime: customSettings.expansionTime || 4000,
+                    inactivityTime: customSettings.fadeoutTime || 20000,
+                    // Otros valores
+                    lifeTime: 25000,
+                    fadeOutTime: 5000,
+                    verticalScale: 0.9,
+                    responseSpeed: 0.3,
+                    // Usar un único esquema de color predominante
+                    baseHue: this.colorScheme.baseHue,
+                    colorVariation: this.colorScheme.variation,
+                    // Historial de notas para transición cromática
+                    noteHistory: [],
+                    maxHistoryLength: 10
                 };
+
+                // Inicializar los valores del sistema de transiciones
+                this.baseExpansionSize = this.config.maxExpansion;
+                this.targetExpansion = this.config.maxExpansion;
+                this.currentExpansion = this.config.maxExpansion;
 
                 this.createGalaxy();
                 this.createNebulaCore();
+            }
+
+            // Método para actualizar la configuración cuando cambia el slider
+            updateConfig(newConfig) {
+                // Actualizar la configuración
+                for (const key in newConfig) {
+                    if (this.config.hasOwnProperty(key)) {
+                        this.config[key] = newConfig[key];
+                    }
+                }
+                
+                // IMPORTANTE: Actualizar el tamaño base cuando cambia el slider
+                if (newConfig.maxExpansion !== undefined) {
+                    this.baseExpansionSize = newConfig.maxExpansion;
+                    
+                    // Recalcular el tamaño objetivo manteniendo el factor de escala MIDI
+                    this.adjustTargetExpansion();
+                }
+            }
+            
+            // Nuevo método para ajustar el tamaño objetivo teniendo en cuenta 
+            // tanto el tamaño base (slider) como el factor de escala MIDI
+            adjustTargetExpansion() {
+                // Calcular nuevo tamaño objetivo basado en el tamaño base y el factor MIDI actual
+                this.targetExpansion = this.baseExpansionSize * this.midiScaleFactor;
+                
+                // Mantener dentro de límites razonables
+                this.targetExpansion = Math.max(this.minExpansion, 
+                                    Math.min(this.maxExpansion, this.targetExpansion));
             }
 
             createGalaxy() {
@@ -1667,39 +1719,39 @@
                 const baseHue = this.config.baseHue;
                 
                 for (let i = 0; i < particleCount; i++) {
-                // Generar un radio aleatorio con sesgo y un ángulo base aleatorio
-                const distFromCenter = Math.pow(Math.random(), 0.5) * this.config.maxExpansion;
-                const baseAngle = Math.random() * Math.PI * 2;
-                const speedVar = Math.random();
-                const phaseOffset = Math.random() * Math.PI * 2;
-                
-                nebulaParams[i * 4] = distFromCenter;
-                nebulaParams[i * 4 + 1] = baseAngle;
-                nebulaParams[i * 4 + 2] = speedVar;
-                nebulaParams[i * 4 + 3] = phaseOffset;
-                
-                // Posición inicial concentrada
-                positions[i * 3] = (Math.random() - 0.5) * 0.2;
-                positions[i * 3 + 1] = (Math.random() - 0.5) * 0.1;
-                positions[i * 3 + 2] = (Math.random() - 0.5) * 0.2;
-                
-                // Pequeña variación sutil en el color (dentro del mismo tono)
-                const hueVar = (Math.random() - 0.5) * this.config.colorVariation;
-                const saturation = 0.7 + Math.random() * 0.3; // Alta saturación
-                const lightness = 0.4 + Math.random() * 0.2; // Brillo moderado
-                
-                // Aplicar color con pequeña variación pero mismo tono base
-                const color = new THREE.Color().setHSL(
-                    (baseHue + hueVar) % 1.0, 
-                    saturation, 
-                    lightness
-                );
-                
-                colors[i * 3] = color.r;
-                colors[i * 3 + 1] = color.g;
-                colors[i * 3 + 2] = color.b;
-                
-                sizes[i] = this.config.baseSize * (0.6 + Math.random() * 0.6);
+                    // Generar un radio aleatorio con sesgo y un ángulo base aleatorio
+                    const distFromCenter = Math.pow(Math.random(), 0.5) * this.config.maxExpansion;
+                    const baseAngle = Math.random() * Math.PI * 2;
+                    const speedVar = Math.random();
+                    const phaseOffset = Math.random() * Math.PI * 2;
+                    
+                    nebulaParams[i * 4] = distFromCenter;
+                    nebulaParams[i * 4 + 1] = baseAngle;
+                    nebulaParams[i * 4 + 2] = speedVar;
+                    nebulaParams[i * 4 + 3] = phaseOffset;
+                    
+                    // Posición inicial concentrada
+                    positions[i * 3] = (Math.random() - 0.5) * 0.2;
+                    positions[i * 3 + 1] = (Math.random() - 0.5) * 0.1;
+                    positions[i * 3 + 2] = (Math.random() - 0.5) * 0.2;
+                    
+                    // Pequeña variación sutil en el color (dentro del mismo tono)
+                    const hueVar = (Math.random() - 0.5) * this.config.colorVariation;
+                    const saturation = 0.7 + Math.random() * 0.3; // Alta saturación
+                    const lightness = 0.4 + Math.random() * 0.2; // Brillo moderado
+                    
+                    // Aplicar color con pequeña variación pero mismo tono base
+                    const color = new THREE.Color().setHSL(
+                        (baseHue + hueVar) % 1.0, 
+                        saturation, 
+                        lightness
+                    );
+                    
+                    colors[i * 3] = color.r;
+                    colors[i * 3 + 1] = color.g;
+                    colors[i * 3 + 2] = color.b;
+                    
+                    sizes[i] = this.config.baseSize * (0.6 + Math.random() * 0.6);
                 }
                 
                 this.geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
@@ -1710,14 +1762,14 @@
                 // Usar textura circular nítida
                 const circleTexture = createSharperCircleTexture();
                 const material = new THREE.PointsMaterial({
-                size: this.config.baseSize,
-                vertexColors: true,
-                transparent: true,
-                opacity: 0.9,
-                blending: THREE.AdditiveBlending,
-                depthWrite: false,
-                map: circleTexture,
-                alphaTest: 0.05
+                    size: this.config.baseSize,
+                    vertexColors: true,
+                    transparent: true,
+                    opacity: 0.9,
+                    blending: THREE.AdditiveBlending,
+                    depthWrite: false,
+                    map: circleTexture,
+                    alphaTest: 0.05
                 });
                 
                 this.pixelObject = new THREE.Points(this.geometry, material);
@@ -1766,18 +1818,18 @@
                 
                 // Crear shader personalizado para el avatar
                 const avatarUniforms = {
-                glowColor: { value: new THREE.Color(0x4488ff) },
-                pulseIntensity: { value: 1.0 },
-                timeFactor: { value: 0.0 }
+                    glowColor: { value: new THREE.Color(0x4488ff) },
+                    pulseIntensity: { value: 1.0 },
+                    timeFactor: { value: 0.0 }
                 };
                 
                 const avatarMaterial = new THREE.ShaderMaterial({
-                uniforms: avatarUniforms,
-                vertexShader: glowVertexShader,
-                fragmentShader: glowFragmentShader,
-                transparent: true,
-                blending: THREE.AdditiveBlending,
-                side: THREE.FrontSide
+                    uniforms: avatarUniforms,
+                    vertexShader: glowVertexShader,
+                    fragmentShader: glowFragmentShader,
+                    transparent: true,
+                    blending: THREE.AdditiveBlending,
+                    side: THREE.FrontSide
                 });
                 
                 avatarObject.material = avatarMaterial;
@@ -1786,17 +1838,17 @@
                 // Inner glow mejorado con shaders
                 const innerGlowGeometry = new THREE.SphereGeometry(1.05, 24, 24);
                 const innerGlowUniforms = {
-                glowColor: { value: new THREE.Color(0xccffff) },
-                pulseIntensity: { value: 0.8 },
-                timeFactor: { value: 0.0 }
+                    glowColor: { value: new THREE.Color(0xccffff) },
+                    pulseIntensity: { value: 0.8 },
+                    timeFactor: { value: 0.0 }
                 };
                 
                 const innerGlowMaterial = new THREE.ShaderMaterial({
-                uniforms: innerGlowUniforms,
-                vertexShader: glowVertexShader,
-                fragmentShader: glowFragmentShader,
-                transparent: true,
-                blending: THREE.AdditiveBlending
+                    uniforms: innerGlowUniforms,
+                    vertexShader: glowVertexShader,
+                    fragmentShader: glowFragmentShader,
+                    transparent: true,
+                    blending: THREE.AdditiveBlending
                 });
                 
                 this.innerGlow = new THREE.Mesh(innerGlowGeometry, innerGlowMaterial);
@@ -1806,18 +1858,18 @@
                 // Outer glow expansivo con shader
                 const outerGlowGeometry = new THREE.SphereGeometry(this.config.maxExpansion / 10, 24, 24);
                 const outerGlowUniforms = {
-                glowColor: { value: new THREE.Color(0x3366ff) },
-                pulseIntensity: { value: 0.4 },
-                timeFactor: { value: 0.0 }
+                    glowColor: { value: new THREE.Color(0x3366ff) },
+                    pulseIntensity: { value: 0.4 },
+                    timeFactor: { value: 0.0 }
                 };
                 
                 const outerGlowMaterial = new THREE.ShaderMaterial({
-                uniforms: outerGlowUniforms,
-                vertexShader: glowVertexShader,
-                fragmentShader: glowFragmentShader,
-                transparent: true,
-                blending: THREE.AdditiveBlending,
-                side: THREE.BackSide
+                    uniforms: outerGlowUniforms,
+                    vertexShader: glowVertexShader,
+                    fragmentShader: glowFragmentShader,
+                    transparent: true,
+                    blending: THREE.AdditiveBlending,
+                    side: THREE.BackSide
                 });
                 
                 this.outerGlowEffect = new THREE.Mesh(outerGlowGeometry, outerGlowMaterial);
@@ -1830,6 +1882,7 @@
                 avatarObject.add(this.coreLight);
             }
 
+            // Añade esta mejora al método pulseCore en la clase PixelGalaxy
             pulseCore(note, velocity) {
                 if (!this.innerGlow || !this.outerGlowEffect || !this.coreLight) return;
                 
@@ -1844,22 +1897,28 @@
                 if (!this.activeNotes[note]) {
                     // Nueva nota
                     this.activeNotes[note] = {
-                    velocity: velocity,
-                    startTime: now,
-                    duration: 0,
-                    lastUpdateTime: now,
-                    color: new THREE.Color().setHSL(
-                        noteHue, 
-                        0.85, 
-                        0.55 + (octave / 8) * 0.25
-                    )
+                        velocity: velocity,
+                        startTime: now,
+                        duration: 0,
+                        lastUpdateTime: now,
+                        color: new THREE.Color().setHSL(
+                            noteHue, 
+                            0.85, 
+                            0.55 + (octave / 8) * 0.25
+                        )
                     };
                 } else {
-                    // Nota ya activa, actualizar
+                    // MODIFICADO: Si la nota ya existe, actualizar su velocidad
+                    // pero mantener otros parámetros para una mejor experiencia
+                    const previousUpdateTime = this.activeNotes[note].lastUpdateTime;
+                    this.activeNotes[note].velocity = velocity;
                     this.activeNotes[note].lastUpdateTime = now;
-                    // Calcular duración acumulada
-                    this.activeNotes[note].duration += now - this.activeNotes[note].lastUpdateTime;
-                    this.activeNotes[note].velocity = velocity; // Actualizar velocidad
+                    
+                    // Solo actualizar la duración acumulada si es una nueva pulsación
+                    // no si es un cambio de volumen continuo
+                    if (now - previousUpdateTime > 500) { // Umbral para diferenciar nuevo toque vs cambio de CC
+                        this.activeNotes[note].duration += now - previousUpdateTime;
+                    }
                 }
                 
                 // Calcular color basado en la nota
@@ -1900,13 +1959,19 @@
                     this.coreLight.distance = 10 + (velocity / 127) * 10;
                 }
                 
-                // Si esta nota se ha sostenido por mucho tiempo o tocado repetidamente,
-                // actualizar una variable de control
+                // AÑADIDO: Actualizar también el factor de escala MIDI basado en la velocidad
+                // para mantener consistencia con los cambios de volumen
+                const velocityNormalized = velocity / 127;
+                const inversedVelocity = 1 - velocityNormalized;
+                this.midiScaleFactor = 0.6 + inversedVelocity * 0.8;
+                this.adjustTargetExpansion();
+                
+                // Actualizar variable de control
                 this.updateDominantNote();
-                }
+            }
 
-                // Agregar método para encontrar la nota dominante
-                updateDominantNote() {
+            // Agregar método para encontrar la nota dominante
+            updateDominantNote() {
                 const now = Date.now();
                 let maxDuration = 0;
                 let mostPlayedNote = null;
@@ -1919,8 +1984,8 @@
                     const noteDuration = note.duration + (now - note.lastUpdateTime);
                     
                     if (noteDuration > maxDuration) {
-                    maxDuration = noteDuration;
-                    mostPlayedNote = noteId;
+                        maxDuration = noteDuration;
+                        mostPlayedNote = noteId;
                     }
                 }
                 
@@ -1931,64 +1996,73 @@
                     this.dominantNoteIntensity = Math.min(1, maxDuration / 10000); // Máximo en 10 segundos
                 } else {
                     this.dominantNoteIntensity = this.dominantNoteIntensity ? 
-                    Math.max(0, this.dominantNoteIntensity - 0.01) : 0; // Disminuir gradualmente
+                        Math.max(0, this.dominantNoteIntensity - 0.01) : 0; // Disminuir gradualmente
                 }
-                }
+            }
 
             addParticles(note, velocity) {
                 if (!this.pixelObject || !this.pixelObject.geometry || this.isDisposed) return;
                 
                 // Si estaba desvaneciéndose, cancelar el desvanecimiento
                 if (this.isFadingOut) {
-                this.isFadingOut = false;
-                if (this.pixelObject.material) {
-                    this.pixelObject.material.opacity = 0.9; // Restaurar opacidad
-                }
+                    this.isFadingOut = false;
+                    if (this.pixelObject.material) {
+                        this.pixelObject.material.opacity = 0.9; // Restaurar opacidad
+                    }
                 }
                 
                 // Activar efectos del núcleo según nota MIDI
                 this.pulseCore(note, velocity);
                 this.lastNoteTime = Date.now();
                 
-                // Sólo transformar una porción de partículas con cada nota
-                // para crear transición gradual y mantener coherencia visual
-                const positions = this.geometry.attributes.position;
-                const colors = this.geometry.attributes.color;
-                
                 // Mapeo de nota a tono de color
                 const noteHue = (note % 12) / 12;
                 const octave = Math.floor(note / 12) - 1;
                 const noteColor = new THREE.Color().setHSL(
-                noteHue, 
-                0.85, 
-                0.55 + (octave / 8) * 0.25
+                    noteHue, 
+                    0.85, 
+                    0.55 + (octave / 8) * 0.25
                 );
                 
+                // MODIFICADO: Relación invertida entre velocidad y tamaño
+                // Usando factor de escala MIDI en lugar de reemplazar directamente maxExpansion
+                const velocityNormalized = velocity / 127;
+                const inversedVelocity = 1 - velocityNormalized;
+                
+                // Calcular factor de escala entre 0.6 (velocidad alta) y 1.4 (velocidad baja)
+                // Esto permite que el slider mantenga su función de control de tamaño base
+                this.midiScaleFactor = 0.6 + inversedVelocity * 0.8;
+                
+                // Actualizar el tamaño objetivo basado en el tamaño base y el factor MIDI
+                this.adjustTargetExpansion();
+                
+                const positions = this.geometry.attributes.position;
+                const colors = this.geometry.attributes.color;
+                
                 // Mayor cantidad de partículas para respuesta más rápida
-                // Usar ratio personalizado
-                const transformCount = Math.floor(positions.count * this.config.particleAffectedRatio * (velocity / 127));
+                // Usar ratio personalizado y velocidad
+                const transformCount = Math.floor(positions.count * this.config.particleAffectedRatio * velocityNormalized);
                 
                 // Transformar un subconjunto de partículas
                 for (let i = 0; i < transformCount; i++) {
-                // Elegir partícula aleatoria
-                const idx = Math.floor(Math.random() * positions.count);
-                
-                // Transformar color gradualmente
-                const currentColor = new THREE.Color(
-                    colors.array[idx * 3],
-                    colors.array[idx * 3 + 1],
-                    colors.array[idx * 3 + 2]
-                );
-                
-                // Mezcla más agresiva hacia el nuevo color para respuesta más rápida
-                // Usar factor personalizado
-                const baseFactor = this.config.colorMixFactor;
-                const mixFactor = baseFactor + (velocity / 127) * (baseFactor * 0.8);
-                const newColor = currentColor.lerp(noteColor, mixFactor);
-                
-                colors.array[idx * 3] = newColor.r;
-                colors.array[idx * 3 + 1] = newColor.g;
-                colors.array[idx * 3 + 2] = newColor.b;
+                    // Elegir partícula aleatoria
+                    const idx = Math.floor(Math.random() * positions.count);
+                    
+                    // Transformar color gradualmente
+                    const currentColor = new THREE.Color(
+                        colors.array[idx * 3],
+                        colors.array[idx * 3 + 1],
+                        colors.array[idx * 3 + 2]
+                    );
+                    
+                    // Mezcla más agresiva hacia el nuevo color para respuesta más rápida
+                    const baseFactor = this.config.colorMixFactor;
+                    const mixFactor = baseFactor + velocityNormalized * (baseFactor * 0.8);
+                    const newColor = currentColor.lerp(noteColor, mixFactor);
+                    
+                    colors.array[idx * 3] = newColor.r;
+                    colors.array[idx * 3 + 1] = newColor.g;
+                    colors.array[idx * 3 + 2] = newColor.b;
                 }
                 
                 // Marcar colores para actualización
@@ -2009,29 +2083,43 @@
                 
                 // Actualizar factor de tiempo para shaders
                 if (this.avatarUniforms) {
-                this.avatarUniforms.timeFactor.value = now * 0.003;
+                    this.avatarUniforms.timeFactor.value = now * 0.003;
                 }
                 if (this.innerGlowUniforms) {
-                this.innerGlowUniforms.timeFactor.value = now * 0.003;
+                    this.innerGlowUniforms.timeFactor.value = now * 0.003;
                 }
                 if (this.outerGlowUniforms) {
-                this.outerGlowUniforms.timeFactor.value = now * 0.002;
+                    this.outerGlowUniforms.timeFactor.value = now * 0.002;
                 }
                 
                 const age = now - this.creationTime;
                 const timeSinceLastNote = now - this.lastNoteTime;
+                
+                // MODIFICADO: Transición suave del tamaño de expansión
+                if (this.currentExpansion !== this.targetExpansion) {
+                    // Factor que controla la velocidad de transición
+                    const lerpFactor = Math.min(1.0, this.expansionTransitionSpeed * deltaTime);
+                    
+                    // Interpolación lineal hacia el tamaño objetivo
+                    this.currentExpansion += (this.targetExpansion - this.currentExpansion) * lerpFactor;
+                    
+                    // Si estamos muy cerca del objetivo, finalizar la transición
+                    if (Math.abs(this.currentExpansion - this.targetExpansion) < 0.01) {
+                        this.currentExpansion = this.targetExpansion;
+                    }
+                }
                 
                 // Usar tiempo de expansión personalizado
                 let normalizedAge = Math.min(1, age / this.config.expansionTime);
                 
                 // Si ya se expandió completamente una vez, mantenerla expandida
                 if (normalizedAge >= 1) {
-                this.fullyExpanded = true;
+                    this.fullyExpanded = true;
                 }
                 
                 // Si está completamente expandida, mantener la expansión
                 if (this.fullyExpanded) {
-                normalizedAge = 1;
+                    normalizedAge = 1;
                 }
                 
                 // Incrementar el pulso y la rotación global de los brazos
@@ -2039,39 +2127,39 @@
                 this.armRotation += this.config.armRotationSpeed * deltaTime;
                 const pulseValue = 0.5 + Math.sin(this.pulsePhase) * 0.5;
                 
-                // Usar un factor de expansión basado en normalizedAge
-                const maxScale = this.config.maxExpansion / 20;
+                // MODIFICADO: Usar currentExpansion en lugar de config.maxExpansion
+                const maxScale = this.currentExpansion / 20;
                 const currentScale = Math.min(maxScale, normalizedAge * maxScale);
                 const positions = this.geometry.attributes.position;
                 const sizes = this.geometry.attributes.size;
                 
                 // Actualizar cada partícula para lograr un efecto espiral animado
                 for (let i = 0; i < positions.count; i++) {
-                const dist = this.nebulaParams[i * 4] * currentScale;
-                const baseAngle = this.nebulaParams[i * 4 + 1];
-                const speedVar = this.nebulaParams[i * 4 + 2];
-                const phaseVar = this.nebulaParams[i * 4 + 3];
-                
-                // Calcular rotación diferencial y sumar la rotación global (se resta para invertir sentido)
-                const rotationIncrement = this.config.spiralSpeed * deltaTime * (0.5 + speedVar);
-                const angle = baseAngle + rotationIncrement - this.armRotation + Math.sin(this.pulsePhase * 0.2 + phaseVar * 10) * 0.1;
-                
-                // Onda radial
-                const wavePhase = this.pulsePhase * 0.3 + phaseVar * Math.PI * 2;
-                const waveMagnitude = 0.25 * speedVar * dist;
-                const orbitRadius = dist * (0.7 + Math.sin(wavePhase) * 0.3);
-                
-                positions.array[i * 3] = Math.cos(angle) * orbitRadius + Math.cos(wavePhase * 1.5) * waveMagnitude;
-                positions.array[i * 3 + 2] = Math.sin(angle) * orbitRadius + Math.sin(wavePhase * 1.5) * waveMagnitude;
-                
-                // Componente Y para dar volumen
-                const yOffset = speedVar * currentScale * this.config.verticalScale;
-                const yWave = Math.sin(wavePhase + angle) * waveMagnitude * 0.8;
-                positions.array[i * 3 + 1] = yOffset + yWave;
-                
-                // Tamaño con pulso
-                const pulseFactor = 1 + pulseValue * 0.1 * (0.5 + phaseVar);
-                sizes.array[i] = this.config.baseSize * (0.5 + normalizedAge * 0.5) * pulseFactor;
+                    const dist = this.nebulaParams[i * 4] * currentScale;
+                    const baseAngle = this.nebulaParams[i * 4 + 1];
+                    const speedVar = this.nebulaParams[i * 4 + 2];
+                    const phaseVar = this.nebulaParams[i * 4 + 3];
+                    
+                    // Calcular rotación diferencial y sumar la rotación global (se resta para invertir sentido)
+                    const rotationIncrement = this.config.spiralSpeed * deltaTime * (0.5 + speedVar);
+                    const angle = baseAngle + rotationIncrement - this.armRotation + Math.sin(this.pulsePhase * 0.2 + phaseVar * 10) * 0.1;
+                    
+                    // Onda radial
+                    const wavePhase = this.pulsePhase * 0.3 + phaseVar * Math.PI * 2;
+                    const waveMagnitude = 0.25 * speedVar * dist;
+                    const orbitRadius = dist * (0.7 + Math.sin(wavePhase) * 0.3);
+                    
+                    positions.array[i * 3] = Math.cos(angle) * orbitRadius + Math.cos(wavePhase * 1.5) * waveMagnitude;
+                    positions.array[i * 3 + 2] = Math.sin(angle) * orbitRadius + Math.sin(wavePhase * 1.5) * waveMagnitude;
+                    
+                    // Componente Y para dar volumen
+                    const yOffset = speedVar * currentScale * this.config.verticalScale;
+                    const yWave = Math.sin(wavePhase + angle) * waveMagnitude * 0.8;
+                    positions.array[i * 3 + 1] = yOffset + yWave;
+                    
+                    // Tamaño con pulso
+                    const pulseFactor = 1 + pulseValue * 0.1 * (0.5 + phaseVar);
+                    sizes.array[i] = this.config.baseSize * (0.5 + normalizedAge * 0.5) * pulseFactor;
                 }
                 
                 positions.needsUpdate = true;
@@ -2079,23 +2167,23 @@
                 
                 // Manejo del fade out - usar tiempo de inactividad personalizado
                 if (this.isFadingOut) {
-                const fadeOutDuration = this.config.fadeOutTime;
-                const timeSinceFade = now - this.fadeOutStartTime;
-                const opacity = Math.max(0, 1 - (timeSinceFade / fadeOutDuration));
-                
-                if (this.pixelObject && this.pixelObject.material) {
-                    this.pixelObject.material.opacity = opacity;
+                    const fadeOutDuration = this.config.fadeOutTime;
+                    const timeSinceFade = now - this.fadeOutStartTime;
+                    const opacity = Math.max(0, 1 - (timeSinceFade / fadeOutDuration));
                     
-                    // Solo eliminar después de un tiempo mucho mayor sin interacción
-                    if (opacity <= 0 && timeSinceLastNote > 30000) {
-                    scene.remove(this.pixelObject);
-                    this.dispose();
-                    return false;
+                    if (this.pixelObject && this.pixelObject.material) {
+                        this.pixelObject.material.opacity = opacity;
+                        
+                        // Solo eliminar después de un tiempo mucho mayor sin interacción
+                        if (opacity <= 0 && timeSinceLastNote > 30000) {
+                            scene.remove(this.pixelObject);
+                            this.dispose();
+                            return false;
+                        }
                     }
-                }
                 } else if (timeSinceLastNote > this.config.inactivityTime) {  // Usar tiempo personalizado
-                this.isFadingOut = true;
-                this.fadeOutStartTime = now;
+                    this.isFadingOut = true;
+                    this.fadeOutStartTime = now;
                 }
                 
                 return true;
@@ -2105,10 +2193,10 @@
                 if (this.isDisposed) return;
                 delete this.activeNotes[note];
                 if (Object.keys(this.activeNotes).length === 0 && Date.now() - this.lastNoteTime > 15000) {
-                if (!this.isFadingOut) {
-                    this.isFadingOut = true;
-                    this.fadeOutStartTime = Date.now();
-                }
+                    if (!this.isFadingOut) {
+                        this.isFadingOut = true;
+                        this.fadeOutStartTime = Date.now();
+                    }
                 }
             }
 
@@ -2121,37 +2209,37 @@
                 const fadeDuration = 2000; // 2 segundos de desvanecimiento
                 
                 const fadeOutAvatarGlow = () => {
-                const now = Date.now();
-                const elapsed = now - startTime;
-                const progress = Math.min(1, elapsed / fadeDuration);
-                
-                // Reducir gradualmente la intensidad del shader del avatar
-                if (this.avatarUniforms && this.avatarUniforms.pulseIntensity) {
-                    this.avatarUniforms.pulseIntensity.value = 1.0 * (1 - progress);
-                }
-                
-                // Reducir la intensidad del inner glow
-                if (this.innerGlowUniforms && this.innerGlowUniforms.pulseIntensity) {
-                    this.innerGlowUniforms.pulseIntensity.value = 0.8 * (1 - progress);
-                }
-                
-                // Reducir la intensidad del outer glow
-                if (this.outerGlowUniforms && this.outerGlowUniforms.pulseIntensity) {
-                    this.outerGlowUniforms.pulseIntensity.value = 0.4 * (1 - progress);
-                }
-                
-                // Reducir la intensidad de la luz
-                if (this.coreLight) {
-                    this.coreLight.intensity = 1.0 * (1 - progress);
-                }
-                
-                if (progress < 1) {
-                    // Continuar el desvanecimiento
-                    requestAnimationFrame(fadeOutAvatarGlow);
-                } else {
+                    const now = Date.now();
+                    const elapsed = now - startTime;
+                    const progress = Math.min(1, elapsed / fadeDuration);
+                    
+                    // Reducir gradualmente la intensidad del shader del avatar
+                    if (this.avatarUniforms && this.avatarUniforms.pulseIntensity) {
+                        this.avatarUniforms.pulseIntensity.value = 1.0 * (1 - progress);
+                    }
+                    
+                    // Reducir la intensidad del inner glow
+                    if (this.innerGlowUniforms && this.innerGlowUniforms.pulseIntensity) {
+                        this.innerGlowUniforms.pulseIntensity.value = 0.8 * (1 - progress);
+                    }
+                    
+                    // Reducir la intensidad del outer glow
+                    if (this.outerGlowUniforms && this.outerGlowUniforms.pulseIntensity) {
+                        this.outerGlowUniforms.pulseIntensity.value = 0.4 * (1 - progress);
+                    }
+                    
+                    // Reducir la intensidad de la luz
+                    if (this.coreLight) {
+                        this.coreLight.intensity = 1.0 * (1 - progress);
+                    }
+                    
+                    if (progress < 1) {
+                        // Continuar el desvanecimiento
+                        requestAnimationFrame(fadeOutAvatarGlow);
+                    } else {
                     // Completar la limpieza una vez finalizado el desvanecimiento
-                    this.completeDispose();
-                }
+                        this.completeDispose();
+                    }
                 };
                 
                 // Iniciar el desvanecimiento
@@ -2161,37 +2249,37 @@
             // Método para completar la limpieza después del desvanecimiento
             completeDispose() {
                 if (this.originalAvatarMaterial && avatarObject) {
-                avatarObject.material = this.originalAvatarMaterial;
-                this.originalAvatarMaterial = null;
+                    avatarObject.material = this.originalAvatarMaterial;
+                    this.originalAvatarMaterial = null;
                 }
                 
                 if (this.innerGlow && avatarObject) {
-                avatarObject.remove(this.innerGlow);
-                this.innerGlow.material.dispose();
-                this.innerGlow.geometry.dispose();
-                this.innerGlow = null;
+                    avatarObject.remove(this.innerGlow);
+                    this.innerGlow.material.dispose();
+                    this.innerGlow.geometry.dispose();
+                    this.innerGlow = null;
                 }
                 
                 if (this.outerGlowEffect && avatarObject) {
-                avatarObject.remove(this.outerGlowEffect);
-                this.outerGlowEffect.material.dispose();
-                this.outerGlowEffect.geometry.dispose();
-                this.outerGlowEffect = null;
+                    avatarObject.remove(this.outerGlowEffect);
+                    this.outerGlowEffect.material.dispose();
+                    this.outerGlowEffect.geometry.dispose();
+                    this.outerGlowEffect = null;
                 }
                 
                 if (this.coreLight && avatarObject) {
-                avatarObject.remove(this.coreLight);
-                this.coreLight = null;
+                    avatarObject.remove(this.coreLight);
+                    this.coreLight = null;
                 }
                 
                 if (this.pixelObject) {
-                scene.remove(this.pixelObject);
-                if (this.pixelObject.geometry) this.pixelObject.geometry.dispose();
-                if (this.pixelObject.material) {
-                    if (this.pixelObject.material.map) this.pixelObject.material.map.dispose();
-                    this.pixelObject.material.dispose();
-                }
-                this.pixelObject = null;
+                    scene.remove(this.pixelObject);
+                    if (this.pixelObject.geometry) this.pixelObject.geometry.dispose();
+                    if (this.pixelObject.material) {
+                        if (this.pixelObject.material.map) this.pixelObject.material.map.dispose();
+                        this.pixelObject.material.dispose();
+                    }
+                    this.pixelObject = null;
                 }
                 
                 this.geometry = null;
@@ -2200,7 +2288,7 @@
                 this.innerGlowUniforms = null;
                 this.outerGlowUniforms = null;
             }
-            }
+        }
         
         // Clase Galaxy para manejar conjuntos de partículas
         // Modificar el método addNote en la clase Galaxy para usar PixelGalaxy
@@ -2612,6 +2700,11 @@
         // 1. INTERCAMBIAR LA ASIGNACIÓN DE TECLAS EN LA FUNCIÓN onKeyDown
 
         function onKeyDown(event) {
+            // Primero verificar si el sintetizador está inhibiendo alguna tecla (como la P)
+            if (window.alienSynth && window.alienSynth.isKeyInhibited(event.key.toLowerCase())) {
+                return; // No procesar esta tecla si está inhibida por el sintetizador
+            }
+            
             switch (event.code) {
                 case 'KeyW':
                     // En tercera persona, W activa moveBackward en lugar de moveForward
@@ -2645,7 +2738,10 @@
                     toggleTeleportPanel();
                     break;
                 case 'KeyP':
-                    cycleViewMode();
+                    // Solo ejecutar si no está inhibido por el sintetizador
+                    if (!(window.alienSynth && window.alienSynth.isKeyInhibited('p'))) {
+                        cycleViewMode();
+                    }
                     break;
                 case 'KeyQ':
                     rotateCameraLeft = true;
@@ -3169,30 +3265,56 @@
         }
 
         // Mejora en la función onMIDIMessage para manejar eventos MIDI de manera más robusta
+        // Función mejorada para procesar mensajes MIDI
         function onMIDIMessage(event) {
             try {
-                const command = event.data[0] >> 4;
-                const channel = event.data[0] & 0xf;
+                // Extraer información del mensaje MIDI
+                const status = event.data[0] & 0xF0; // Los 4 bits superiores son el comando
+                const channel = event.data[0] & 0x0F; // Los 4 bits inferiores son el canal
                 
-                const note = event.data[1];
-                const velocity = (event.data.length > 2) ? event.data[2] : 0;
+                // Extraer datos según el tipo de mensaje
+                const data1 = event.data[1];
+                const data2 = event.data.length > 2 ? event.data[2] : 0;
                 
-                if (isNaN(note) || isNaN(velocity)) return;
-                
-                if (command === 9 && velocity > 0) {
-                    // Nota presionada
+                // Procesar según el tipo de mensaje
+                if (status === 0x90 && data2 > 0) {
+                    // Note On (tecla presionada)
+                    const note = data1;
+                    const velocity = data2;
+                    
                     if (galaxies[username]) {
                         galaxies[username].addNote(note, velocity);
                         
-                        // Feedback visual mejorado
+                        // Feedback visual
                         const noteName = getNoteNameFromMIDI(note);
                         midiStatusElement.textContent = `Nota: ${noteName} (${note}), Velocidad: ${velocity}`;
+                        
+                        // Guardar la última nota activa para respuesta a cambios de volumen
+                        window.lastActiveNote = note;
+                        window.lastActiveVelocity = velocity;
                     }
-                }
-                else if ((command === 8 || (command === 9 && velocity === 0))) {
-                    // Nota liberada
+                } 
+                else if ((status === 0x80) || (status === 0x90 && data2 === 0)) {
+                    // Note Off (tecla liberada)
+                    const note = data1;
+                    
                     if (galaxies[username]) {
                         galaxies[username].removeNote(note);
+                        
+                        // Si esta era la última nota activa, eliminarla
+                        if (note === window.lastActiveNote) {
+                            window.lastActiveNote = null;
+                        }
+                    }
+                }
+                else if (status === 0xB0) {
+                    // Control Change (CC)
+                    const controllerNumber = data1;
+                    const value = data2;
+                    
+                    // Procesar cambios de volumen (CC #7, #11 o rueda de modulación #1)
+                    if (controllerNumber === 7 || controllerNumber === 11 || controllerNumber === 1) {
+                        processVolumeChange(value);
                     }
                 }
             } catch (error) {
@@ -3200,6 +3322,750 @@
             }
         }
 
+        // Añade la función processVolumeChange pero sin redeclarar variables
+        function processVolumeChange(value) {
+            // Actualizar el volumen actual (usar window para acceder a variable global)
+            window.currentMIDIVolume = value;
+            
+            // Actualizar visualización
+            midiStatusElement.textContent = `Volumen: ${value}`;
+            
+            // Si hay una galaxia activa, actualizar su tamaño basado en el volumen
+            if (galaxies[username] && galaxies[username].pixelGalaxy) {
+                // Calcular el factor de escala inverso (volumen bajo = galaxia grande)
+                const volumeNormalized = value / 127;
+                const inversedVolume = 1 - volumeNormalized;
+                
+                // Aplicar el cambio de volumen a través del factor de escala MIDI
+                galaxies[username].pixelGalaxy.midiScaleFactor = 0.6 + inversedVolume * 0.8;
+                
+                // Ajustar el tamaño objetivo
+                galaxies[username].pixelGalaxy.adjustTargetExpansion();
+                
+                // Si hay una nota activa, actualizar también los efectos visuales
+                if (window.lastActiveNote !== null) {
+                    // Recrear el efecto visual pero manteniendo la nota y usando el nuevo volumen
+                    galaxies[username].pixelGalaxy.pulseCore(window.lastActiveNote, value);
+                }
+            }
+        }
+
+        // Clase mejorada para el sintetizador alienígena
+        class AlienSynthKeyboard {
+            constructor() {
+                // Inicialización de variables de estado
+                this.isMinimized = false;
+                this.isConfigOpen = false;
+                this.isRebinding = false;
+                this.selectedKey = null;
+                this.baseOctave = 4;
+                this.currentOctave = 4;
+                this.velocity = 78;
+                this.attackTime = 0.05;
+                this.releaseTime = 0.3;
+                this.currentWaveform = 'sine';
+                this.currentRootNote = 0; // C por defecto
+                this.currentScale = 'chromatic';
+                this.activeKeys = new Set();
+                this.activeNotes = {};
+                this.inhibitKeyP = false; // Para evitar conflicto con la tecla P
+                
+                // Cargar configuración guardada o usar valores predeterminados
+                this.loadSavedConfig();
+                
+                // Definiciones de escalas musicales
+                this.scales = {
+                    chromatic: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+                    major: [0, 2, 4, 5, 7, 9, 11],
+                    minor: [0, 2, 3, 5, 7, 8, 10],
+                    pentatonic: [0, 2, 4, 7, 9],
+                    blues: [0, 3, 5, 6, 7, 10],
+                    harmonicMinor: [0, 2, 3, 5, 7, 8, 11],
+                    dorian: [0, 2, 3, 5, 7, 9, 10],
+                    phrygian: [0, 1, 3, 5, 7, 8, 10],
+                    lydian: [0, 2, 4, 6, 7, 9, 11],
+                    mixolydian: [0, 2, 4, 5, 7, 9, 10]
+                };
+                
+                // Inicializar Web Audio API
+                this.initAudio();
+                
+                // Obtener referencias a elementos DOM
+                this.keyboardElement = document.getElementById('virtualKeyboard');
+                this.toggleButton = document.getElementById('toggleKeyboard');
+                this.settingsButton = document.getElementById('synthSettings');
+                this.closeConfigButton = document.getElementById('closeConfigPanel');
+                this.configPanel = document.getElementById('synthConfigPanel');
+                this.octaveDown = document.getElementById('octaveDown');
+                this.octaveUp = document.getElementById('octaveUp');
+                this.currentOctaveDisplay = document.getElementById('currentOctave');
+                this.velocitySlider = document.getElementById('virtualVelocity');
+                this.volumeDisplay = document.getElementById('displayVolume');
+                this.currentNoteDisplay = document.getElementById('currentNote');
+                this.currentScaleDisplay = document.getElementById('currentScale');
+                this.attackKnob = document.getElementById('knobAttack');
+                this.releaseKnob = document.getElementById('knobRelease');
+                this.scaleSelector = document.getElementById('scaleSelector');
+                this.rootNoteSelector = document.getElementById('rootNoteSelector');
+                this.keyBindingStatus = document.getElementById('keyBindingStatus');
+                this.resetKeyBindingsButton = document.getElementById('resetKeyBindings');
+                this.saveConfigButton = document.getElementById('saveConfig');
+                this.synthKeyboardContainer = document.getElementById('synthKeyboard');
+                
+                // Generar el teclado dinámicamente basado en la escala seleccionada
+                this.generateKeyboard();
+                
+                // Inicializar Event Listeners
+                this.initializeEventListeners();
+                
+                // Inicializar posición de los knobs
+                this.updateKnobPosition('attack', this.attackTime);
+                this.updateKnobPosition('release', this.releaseTime);
+                
+                 // Actualizar visualización
+                this.updateScaleDisplay();
+            }
+            
+            // Cargar configuración guardada
+            loadSavedConfig() {
+                try {
+                    const savedConfig = localStorage.getItem('alienSynthConfig');
+                    if (savedConfig) {
+                        const config = JSON.parse(savedConfig);
+                        this.currentScale = config.scale || 'chromatic';
+                        this.currentRootNote = config.rootNote || 0;
+                        this.currentOctave = config.octave || 4;
+                        this.attackTime = config.attack || 0.05;
+                        this.releaseTime = config.release || 0.3;
+                        this.velocity = config.velocity || 78;
+                        
+                        // Cargar mapeo de teclas personalizado si existe
+                        if (config.keyMapping) {
+                            this.customKeyMapping = config.keyMapping;
+                        } else {
+                            this.customKeyMapping = this.createDefaultKeyMapping();
+                        }
+                    } else {
+                        this.customKeyMapping = this.createDefaultKeyMapping();
+                    }
+                } catch (e) {
+                    console.error('Error al cargar configuración del sintetizador:', e);
+                    this.customKeyMapping = this.createDefaultKeyMapping();
+                }
+            }
+            
+            // Guardar configuración actual
+            saveConfig() {
+                try {
+                    const config = {
+                        scale: this.currentScale,
+                        rootNote: this.currentRootNote,
+                        octave: this.currentOctave,
+                        attack: this.attackTime,
+                        release: this.releaseTime,
+                        velocity: this.velocity,
+                        keyMapping: this.customKeyMapping
+                    };
+                    
+                    localStorage.setItem('alienSynthConfig', JSON.stringify(config));
+                    return true;
+                } catch (e) {
+                    console.error('Error al guardar configuración del sintetizador:', e);
+                    return false;
+                }
+            }
+            
+            // Inicializar Web Audio API
+            initAudio() {
+                try {
+                    // Crear contexto de audio
+                    this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    
+                    // Crear nodo de ganancia maestro
+                    this.masterGain = this.audioContext.createGain();
+                    this.masterGain.gain.value = 0.7; // Volumen predeterminado
+                    this.masterGain.connect(this.audioContext.destination);
+                    
+                    console.log('Sistema de audio inicializado correctamente');
+                } catch (e) {
+                    console.error('Error al inicializar el sistema de audio:', e);
+                }
+            }
+            
+            // Crear una nota con audio
+            createAudioNote(frequency) {
+                // Crear oscilador
+                const oscillator = this.audioContext.createOscillator();
+                oscillator.type = this.currentWaveform;
+                oscillator.frequency.value = frequency;
+                
+                // Crear nodo de ganancia para esta nota
+                const noteGain = this.audioContext.createGain();
+                noteGain.gain.value = 0;
+                
+                // Conectar oscilador -> noteGain -> masterGain -> salida
+                oscillator.connect(noteGain);
+                noteGain.connect(this.masterGain);
+                
+                // Configurar ataque
+                const now = this.audioContext.currentTime;
+                noteGain.gain.setValueAtTime(0, now);
+                noteGain.gain.linearRampToValueAtTime(this.velocity / 127, now + this.attackTime);
+                
+                // Iniciar oscilador
+                oscillator.start();
+                
+                return { oscillator, noteGain };
+            }
+            
+            // Detener una nota
+            stopAudioNote(noteObj) {
+                const now = this.audioContext.currentTime;
+                
+                // Aplicar release
+                noteObj.noteGain.gain.cancelScheduledValues(now);
+                noteObj.noteGain.gain.setValueAtTime(noteObj.noteGain.gain.value, now);
+                noteObj.noteGain.gain.exponentialRampToValueAtTime(0.001, now + this.releaseTime);
+                
+                // Detener oscilador después del release
+                setTimeout(() => {
+                    try {
+                        noteObj.oscillator.stop();
+                        noteObj.oscillator.disconnect();
+                        noteObj.noteGain.disconnect();
+                    } catch (e) {
+                        // Ignorar errores si ya se ha detenido
+                    }
+                }, this.releaseTime * 1000);
+            }
+            
+            // Convertir número MIDI a frecuencia
+            midiToFrequency(midiNote) {
+                return 440 * Math.pow(2, (midiNote - 69) / 12);
+            }
+            
+            // Crear mapeo de teclas predeterminado
+            createDefaultKeyMapping() {
+                const mapping = {
+                    't': 0, 'y': 1, 'u': 2, 'i': 3, 'o': 4, 'p': 5, 
+                    '´': 6, '+': 7,
+                    'g': 8, 'h': 9, 'j': 10, 'k': 11, 'l': 12, 'ñ': 13, 
+                    '{': 14,
+                    'b': 15, 'n': 16, 'm': 17, ',': 18, '.': 19, '-': 20
+                };
+                return mapping;
+            }
+            
+            // Generar el teclado en el DOM basado en la escala actual
+            generateKeyboard() {
+                if (!this.synthKeyboardContainer) return;
+                
+                // Limpiar el contenedor
+                this.synthKeyboardContainer.innerHTML = '';
+                
+                // Obtener notas de la escala actual
+                const scaleNotes = this.getScaleNotes();
+                
+                // Crear teclas en el DOM
+                for (let i = 0; i < 21; i++) {
+                    const keyIndex = i % scaleNotes.length;
+                    const noteValue = scaleNotes[keyIndex];
+                    const isBlack = [1, 3, 6, 8, 10].includes(noteValue % 12);
+                    
+                    const keyElement = document.createElement('div');
+                    keyElement.className = `key ${isBlack ? 'black' : 'white'}`;
+                    keyElement.dataset.index = i;
+                    keyElement.dataset.note = noteValue;
+                    
+                    // Buscar la tecla física asignada a este índice
+                    let assignedKey = null;
+                    for (const [key, index] of Object.entries(this.customKeyMapping)) {
+                        if (index === i) {
+                            assignedKey = key;
+                            break;
+                        }
+                    }
+                    
+                    // Si no hay tecla asignada, usar un espacio vacío
+                    if (!assignedKey) {
+                        assignedKey = ' ';
+                    }
+                    
+                    // Asignar la letra de la tecla física
+                    keyElement.innerHTML = `${this.getNoteNameFromValue(noteValue)}<span class="key-binding">${assignedKey.toUpperCase()}</span>`;
+                    
+                    // Asignar eventos
+                    keyElement.addEventListener('mousedown', (e) => {
+                        if (this.isRebinding) {
+                            this.selectedKey = keyElement;
+                            keyElement.classList.add('rebinding');
+                            this.keyBindingStatus.textContent = `Presiona una tecla para asignar a ${this.getNoteNameFromValue(noteValue)}...`;
+                        } else {
+                            const adjustedNote = this.getAdjustedNote(noteValue);
+                            this.playNote(adjustedNote);
+                            keyElement.classList.add('active');
+                        }
+                    });
+                    
+                    keyElement.addEventListener('mouseup', (e) => {
+                        if (!this.isRebinding) {
+                            const adjustedNote = this.getAdjustedNote(noteValue);
+                            this.stopNote(adjustedNote);
+                            keyElement.classList.remove('active');
+                        }
+                    });
+                    
+                    keyElement.addEventListener('mouseleave', (e) => {
+                        if (!this.isRebinding && e.buttons === 1) {
+                            const adjustedNote = this.getAdjustedNote(noteValue);
+                            this.stopNote(adjustedNote);
+                            keyElement.classList.remove('active');
+                        }
+                    });
+                    
+                    keyElement.addEventListener('mouseenter', (e) => {
+                        if (!this.isRebinding && e.buttons === 1) {
+                            const adjustedNote = this.getAdjustedNote(noteValue);
+                            this.playNote(adjustedNote);
+                            keyElement.classList.add('active');
+                        }
+                    });
+                    
+                    this.synthKeyboardContainer.appendChild(keyElement);
+                }
+            }
+            
+            // Obtener las notas de la escala actual con la nota raíz aplicada
+            getScaleNotes() {
+                const scaleIntervals = this.scales[this.currentScale];
+                const notes = [];
+                
+                // Generar 3 octavas de notas para tener suficientes
+                for (let octave = 0; octave < 3; octave++) {
+                    for (const interval of scaleIntervals) {
+                        const note = (this.currentRootNote + interval + octave * 12) % 36;
+                        notes.push(note);
+                    }
+                }
+                
+                // Ordenar y eliminar duplicados
+                return [...new Set(notes)].sort((a, b) => a - b);
+            }
+            
+            // Ajustar nota según la octava actual
+            getAdjustedNote(noteValue) {
+                return noteValue + ((this.currentOctave - 3) * 12);
+            }
+            
+            // Obtener nombre de nota a partir del valor relativo
+            getNoteNameFromValue(noteValue) {
+                const noteIndex = (noteValue + this.currentRootNote) % 12;
+                const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+                return noteNames[noteIndex];
+            }
+            
+            // Inicializar todos los event listeners
+            initializeEventListeners() {
+                // Botón para minimizar/maximizar
+                this.toggleButton.addEventListener('click', () => this.toggleMinimize());
+                
+                // Botón de configuración
+                this.settingsButton.addEventListener('click', () => this.toggleConfigPanel());
+                
+                // Botón de cerrar configuración
+                this.closeConfigButton.addEventListener('click', () => this.toggleConfigPanel());
+                
+                // Controles de octava
+                this.octaveDown.addEventListener('click', () => this.changeOctave(-1));
+                this.octaveUp.addEventListener('click', () => this.changeOctave(1));
+                
+                // Control de volumen (velocidad MIDI)
+                this.velocitySlider.addEventListener('input', () => {
+                    this.velocity = parseInt(this.velocitySlider.value);
+                    this.volumeDisplay.textContent = this.velocity;
+                });
+                
+                // Selector de escala
+                this.scaleSelector.addEventListener('change', () => {
+                    this.currentScale = this.scaleSelector.value;
+                    this.updateScaleDisplay();
+                    this.generateKeyboard();
+                });
+                
+                // Selector de nota raíz
+                this.rootNoteSelector.addEventListener('change', () => {
+                    this.currentRootNote = parseInt(this.rootNoteSelector.value);
+                    this.updateScaleDisplay();
+                    this.generateKeyboard();
+                });
+                
+                // Botón para resetear asignaciones de teclas
+                this.resetKeyBindingsButton.addEventListener('click', () => {
+                    this.customKeyMapping = this.createDefaultKeyMapping();
+                    this.generateKeyboard();
+                    this.keyBindingStatus.textContent = "Asignaciones de teclas restauradas";
+                });
+                
+                // Botón para guardar configuración
+                this.saveConfigButton.addEventListener('click', () => {
+                    if (this.saveConfig()) {
+                        this.keyBindingStatus.textContent = "Configuración guardada correctamente";
+                        this.toggleConfigPanel();
+                    } else {
+                        this.keyBindingStatus.textContent = "Error al guardar la configuración";
+                    }
+                });
+                
+                // Knobs (diales) - Attack y Release
+                this.setupKnobControl(this.attackKnob, 'attack', 0.01, 0.5);
+                this.setupKnobControl(this.releaseKnob, 'release', 0.1, 2.0);
+                
+                // Botones de selección de forma de onda
+                const waveButtons = document.querySelectorAll('.wave-button');
+                waveButtons.forEach(button => {
+                    button.addEventListener('click', () => {
+                        // Desactivar todos los botones
+                        waveButtons.forEach(btn => btn.classList.remove('active'));
+                        // Activar el botón seleccionado
+                        button.classList.add('active');
+                        // Cambiar forma de onda
+                        this.currentWaveform = button.getAttribute('data-wave');
+                    });
+                });
+                
+                // Iniciar modo de reasignación de teclas
+                this.keyboardElement.addEventListener('click', (e) => {
+                    // Solo para iniciar audio en Chrome, no para reasignar teclas
+                    if (this.audioContext.state === 'suspended') {
+                        this.audioContext.resume();
+                    }
+                });
+                
+                // Eventos para el teclado físico
+                document.addEventListener('keydown', (e) => this.handleKeyDown(e));
+                document.addEventListener('keyup', (e) => this.handleKeyUp(e));
+                
+                // Evento para asignar nueva tecla
+                document.addEventListener('keypress', (e) => {
+                    if (this.isRebinding && this.selectedKey) {
+                        e.preventDefault();
+                        
+                        const keyChar = e.key.toLowerCase();
+                        const keyIndex = parseInt(this.selectedKey.dataset.index);
+                        
+                        // Verificar si la tecla ya está asignada
+                        for (const [key, index] of Object.entries(this.customKeyMapping)) {
+                            if (key === keyChar) {
+                                this.customKeyMapping[key] = null; // Desasignar la tecla anterior
+                            }
+                        }
+                        
+                        // Asignar la nueva tecla
+                        this.customKeyMapping[keyChar] = keyIndex;
+                        
+                        // Actualizar visualización
+                        this.selectedKey.querySelector('.key-binding').textContent = keyChar.toUpperCase();
+                        this.keyBindingStatus.textContent = `Tecla ${keyChar.toUpperCase()} asignada a ${this.getNoteNameFromValue(parseInt(this.selectedKey.dataset.note))}`;
+                        
+                        // Finalizar reasignación
+                        this.selectedKey.classList.remove('rebinding');
+                        this.selectedKey = null;
+                        this.isRebinding = false;
+                    }
+                });
+                
+                // Inicializar selectores
+                this.scaleSelector.value = this.currentScale;
+                this.rootNoteSelector.value = this.currentRootNote;
+            }
+            
+            // Configurar control para los knobs (diales)
+            setupKnobControl(knobElement, paramName, minValue, maxValue) {
+                let isDragging = false;
+                let startY;
+                let startValue;
+                
+                // Valor inicial
+                if (paramName === 'attack') {
+                    startValue = this.attackTime;
+                } else if (paramName === 'release') {
+                    startValue = this.releaseTime;
+                }
+                
+                // Evento mousedown
+                knobElement.addEventListener('mousedown', (e) => {
+                    isDragging = true;
+                    startY = e.clientY;
+                    startValue = paramName === 'attack' ? this.attackTime : this.releaseTime;
+                    
+                    // Capturar el mouse
+                    document.addEventListener('mousemove', onMouseMove);
+                    document.addEventListener('mouseup', onMouseUp);
+                    
+                    // Prevenir selección de texto
+                    e.preventDefault();
+                });
+                
+                // Función para manejar mousemove
+                const onMouseMove = (e) => {
+                    if (!isDragging) return;
+                    
+                    // Calcular delta Y (movimiento invertido para que hacia arriba aumente el valor)
+                    const deltaY = startY - e.clientY;
+                    const sensitivity = 0.005; // Sensibilidad del knob
+                    
+                    // Calcular nuevo valor basado en el rango
+                    let newValue = startValue + (deltaY * sensitivity);
+                    newValue = Math.max(minValue, Math.min(maxValue, newValue));
+                    
+                    // Actualizar valor según el parámetro
+                    if (paramName === 'attack') {
+                        this.attackTime = newValue;
+                    } else if (paramName === 'release') {
+                        this.releaseTime = newValue;
+                    }
+                    
+                    // Actualizar posición visual del knob
+                    this.updateKnobPosition(paramName, newValue);
+                };
+                
+                // Función para manejar mouseup
+                const onMouseUp = () => {
+                    isDragging = false;
+                    document.removeEventListener('mousemove', onMouseMove);
+                    document.removeEventListener('mouseup', onMouseUp);
+                };
+            }
+            
+            // Actualizar la posición visual de los knobs
+            updateKnobPosition(paramName, value) {
+                const knobElement = paramName === 'attack' ? this.attackKnob : this.releaseKnob;
+                const minValue = paramName === 'attack' ? 0.01 : 0.1;
+                const maxValue = paramName === 'attack' ? 0.5 : 2.0;
+                
+                // Calcular ángulo basado en el valor (0 a 270 grados)
+                const range = maxValue - minValue;
+                const normalizedValue = (value - minValue) / range;
+                const angle = normalizedValue * 270; // Rango de 270 grados
+                
+                // Actualizar la rotación del knob
+                knobElement.style.transform = `rotate(${angle}deg)`;
+            }
+            
+            // Actualizar visualización de la escala actual
+            updateScaleDisplay() {
+                // Obtener nombre legible de la escala
+                const scaleNames = {
+                    chromatic: 'CROMÁTICA',
+                    major: 'MAYOR',
+                    minor: 'MENOR',
+                    pentatonic: 'PENTATÓNICA',
+                    blues: 'BLUES',
+                    harmonicMinor: 'MENOR ARMÓNICA',
+                    dorian: 'DÓRICA',
+                    phrygian: 'FRIGIA',
+                    lydian: 'LIDIA',
+                    mixolydian: 'MIXOLIDIA'
+                };
+                
+                // Obtener nombre de la nota raíz
+                const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+                const rootName = noteNames[this.currentRootNote];
+                
+                // Actualizar visualización
+                this.currentScaleDisplay.textContent = `${rootName} ${scaleNames[this.currentScale]}`;
+            }
+            
+            // Minimizar/maximizar el teclado
+            toggleMinimize() {
+                this.isMinimized = !this.isMinimized;
+                if (this.isMinimized) {
+                    this.keyboardElement.classList.add('minimized');
+                    
+                    // Si el panel de configuración está abierto, cerrarlo
+                    if (this.isConfigOpen) {
+                        this.toggleConfigPanel();
+                    }
+                } else {
+                    this.keyboardElement.classList.remove('minimized');
+                }
+            }
+            
+            // Abrir/cerrar panel de configuración
+            toggleConfigPanel() {
+                this.isConfigOpen = !this.isConfigOpen;
+                
+                if (this.isConfigOpen) {
+                    this.configPanel.style.display = 'block';
+                    this.isRebinding = false;
+                    this.keyBindingStatus.textContent = 'Listo para reasignar';
+                    
+                    // Si está minimizado, expandirlo
+                    if (this.isMinimized) {
+                        this.toggleMinimize();
+                    }
+                } else {
+                    this.configPanel.style.display = 'none';
+                    
+                    // Si estaba en modo reasignación, cancelarlo
+                    if (this.selectedKey) {
+                        this.selectedKey.classList.remove('rebinding');
+                        this.selectedKey = null;
+                        this.isRebinding = false;
+                    }
+                }
+            }
+            
+            // Cambiar octava
+            changeOctave(delta) {
+                this.currentOctave = Math.max(1, Math.min(7, this.currentOctave + delta));
+                this.currentOctaveDisplay.textContent = this.currentOctave;
+            }
+            
+            // Manejar eventos keydown del teclado físico
+            handleKeyDown(e) {
+                // Evitar repetición de tecla mantenida
+                if (e.repeat) return;
+                
+                // Evitar capturar teclas cuando se está escribiendo en un input o en modo reasignación
+                if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || this.isRebinding) return;
+                
+                const key = e.key.toLowerCase();
+                
+                // INHIBIR LA TECLA P si el teclado está activo
+                if (key === 'p') {
+                    // Verificar si el sintetizador está minimizado
+                    if (!this.isMinimized) {
+                        this.inhibitKeyP = true;
+                        e.preventDefault(); // Prevenir acción predeterminada (cambio de vista)
+                    }
+                }
+                
+                // Si la tecla está mapeada a una nota
+                const keyIndex = this.customKeyMapping[key];
+                if (keyIndex !== undefined && keyIndex !== null) {
+                    // Prevenir comportamiento predeterminado (scrolling, etc)
+                    e.preventDefault();
+                    
+                    // Buscar la tecla visual correspondiente
+                    const keyElement = document.querySelector(`.key[data-index="${keyIndex}"]`);
+                    if (keyElement) {
+                        // Obtener la nota real y ajustarla según la octava
+                        const noteValue = parseInt(keyElement.dataset.note);
+                        const adjustedNote = this.getAdjustedNote(noteValue);
+                        
+                        // Marcar la tecla virtual como activa
+                        keyElement.classList.add('active');
+                        
+                        // Tocar la nota
+                        this.playNote(adjustedNote);
+                    }
+                }
+            }
+            
+            // Manejar eventos keyup del teclado físico
+            handleKeyUp(e) {
+                // Evitar capturar teclas cuando se está escribiendo en un input o en modo reasignación
+                if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || this.isRebinding) return;
+                
+                const key = e.key.toLowerCase();
+                
+                // Permitir nuevamente la tecla P
+                if (key === 'p') {
+                    this.inhibitKeyP = false;
+                }
+                
+                // Si la tecla está mapeada a una nota
+                const keyIndex = this.customKeyMapping[key];
+                if (keyIndex !== undefined && keyIndex !== null) {
+                    // Buscar la tecla visual correspondiente
+                    const keyElement = document.querySelector(`.key[data-index="${keyIndex}"]`);
+                    if (keyElement) {
+                        // Obtener la nota real y ajustarla según la octava
+                        const noteValue = parseInt(keyElement.dataset.note);
+                        const adjustedNote = this.getAdjustedNote(noteValue);
+                        
+                        // Desmarcar la tecla virtual
+                        keyElement.classList.remove('active');
+                        
+                        // Detener la nota
+                        this.stopNote(adjustedNote);
+                    }
+                }
+            }
+            
+            // Tocar una nota (audio + efecto visual + integración con galaxias)
+            playNote(noteNumber) {
+                // Evitar tocar la misma nota dos veces
+                if (this.activeKeys.has(noteNumber)) return;
+                
+                // Agregar a las teclas activas
+                this.activeKeys.add(noteNumber);
+                
+                // Crear sonido
+                const frequency = this.midiToFrequency(noteNumber);
+                const audioNote = this.createAudioNote(frequency);
+                this.activeNotes[noteNumber] = audioNote;
+                
+                // Actualizar visualización
+                const noteName = this.getNoteNameFromMIDI(noteNumber);
+                this.currentNoteDisplay.textContent = noteName;
+                
+                // Verificar que la galaxia del usuario existe
+                if (galaxies[username]) {
+                    // Añadir la nota a la galaxia (mismo método que usa el MIDI hardware)
+                    galaxies[username].addNote(noteNumber, this.velocity);
+                    
+                    // Actualizar el estado MIDI en la interfaz
+                    if (midiStatusElement) {
+                        midiStatusElement.textContent = `Nota: ${noteName} (${noteNumber}), Velocidad: ${this.velocity}`;
+                    }
+                }
+            }
+            
+            // Detener una nota
+            stopNote(noteNumber) {
+                // Eliminar de las teclas activas
+                this.activeKeys.delete(noteNumber);
+                
+                // Detener sonido
+                if (this.activeNotes[noteNumber]) {
+                    this.stopAudioNote(this.activeNotes[noteNumber]);
+                    delete this.activeNotes[noteNumber];
+                }
+                
+                // Actualizar visualización si no hay notas activas
+                if (this.activeKeys.size === 0) {
+                    this.currentNoteDisplay.textContent = '--';
+                } else {
+                    // Mostrar la última nota activa
+                    const lastActiveNote = [...this.activeKeys].pop();
+                    this.currentNoteDisplay.textContent = this.getNoteNameFromMIDI(lastActiveNote);
+                }
+                
+                // Verificar que la galaxia del usuario existe
+                if (galaxies[username]) {
+                    // Eliminar la nota de la galaxia
+                    galaxies[username].removeNote(noteNumber);
+                }
+            }
+            
+            // Obtener nombre de nota a partir del número MIDI
+            getNoteNameFromMIDI(midiNote) {
+                const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+                const octave = Math.floor(midiNote / 12) - 1;
+                const noteName = noteNames[midiNote % 12];
+                return `${noteName}${octave}`;
+            }
+            
+            // Verificar si una tecla debe ser inhibida (como la P)
+            isKeyInhibited(key) {
+                if (key === 'p' && this.inhibitKeyP) {
+                    return true;
+                }
+                return false;
+            }
+        }
 
          // Agregar un event listener al documento para cerrar el menú al hacer clic fuera
         document.addEventListener('click', function(event) {
@@ -3221,9 +4087,677 @@
 
         // Iniciar todo cuando el DOM esté cargado
         document.addEventListener('DOMContentLoaded', function() {
+            // Inicializaciones originales
             init();
             initMIDI();
+            
+            // Inicializar el sintetizador virtual alienígena
+            const alienSynth = new AlienSynthKeyboard();
+            
+            // Exportar a una variable global para acceso desde otras partes del código
+            window.alienSynth = alienSynth;
+            
+            // Asegurar que la función getNoteNameFromMIDI esté disponible globalmente si es necesario
+            if (typeof window.getNoteNameFromMIDI !== 'function') {
+                window.getNoteNameFromMIDI = function(midiNote) {
+                    const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+                    const octave = Math.floor(midiNote / 12) - 1;
+                    const noteName = noteNames[midiNote % 12];
+                    return `${noteName}${octave}`;
+                };
+            }
         });
+
     </script>
+        <!-- Teclado MIDI Virtual Compacto y Transparente -->
+        <div id="virtualKeyboard" class="alien-synth compact minimized">
+            <div class="synth-header">
+            <div class="synth-logo">
+                <span class="alien-text">XENO</span><span class="alien-glow">SYNTH</span>
+            </div>
+            <div class="synth-controls">
+                <button id="synthSettings" class="alien-button settings-btn" title="Configuración">⚙</button>
+                <button id="toggleKeyboard" class="alien-button">
+                    <span class="alien-icon">▲</span>
+                </button>
+            </div>
+        </div>
+        
+        <div class="synth-body">
+            <div class="synth-display">
+                <div class="display-screen">
+                    <div class="display-left">
+                        <div class="display-octave">OCT: <span id="currentOctave">4</span></div>
+                        <div class="display-velocity">VOL: <span id="displayVolume">78</span></div>
+                    </div>
+                    <div class="display-right">
+                        <div class="display-note" id="currentNote">--</div>
+                        <div class="display-scale">SCALE: <span id="currentScale">CHROMATIC</span></div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="synth-panel">
+                <div class="panel-section">
+                    <div class="control-knob">
+                        <div class="knob-ring"></div>
+                        <div class="knob" id="knobAttack">
+                            <div class="knob-indicator"></div>
+                        </div>
+                        <div class="knob-label">ATTACK</div>
+                    </div>
+                    <div class="control-knob">
+                        <div class="knob-ring"></div>
+                        <div class="knob" id="knobRelease">
+                            <div class="knob-indicator"></div>
+                        </div>
+                        <div class="knob-label">RELEASE</div>
+                    </div>
+                    <div class="control-group">
+                        <label>OCTAVE</label>
+                        <div class="control-buttons">
+                            <button id="octaveDown" class="alien-small-button">-</button>
+                            <button id="octaveUp" class="alien-small-button">+</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="panel-section">
+                    <div class="control-slider">
+                        <label>VOLUME</label>
+                        <input type="range" id="virtualVelocity" min="1" max="127" value="78">
+                    </div>
+                    <div class="wave-selector">
+                        <label>WAVEFORM</label>
+                        <div class="wave-buttons">
+                            <button class="wave-button active" data-wave="sine">◠◡</button>
+                            <button class="wave-button" data-wave="square">▮▯</button>
+                            <button class="wave-button" data-wave="sawtooth">◸</button>
+                            <button class="wave-button" data-wave="triangle">◺◿</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="keyboard-container">
+                <!-- Contenedor simplificado para las teclas - se generan dinámicamente con JS -->
+                <div id="synthKeyboard" class="synth-keyboard">
+                    <!-- Las teclas se generarán dinámicamente -->
+                </div>
+            </div>
+        </div>
+        
+        <!-- Panel de configuración del sintetizador -->
+        <div id="synthConfigPanel" class="synth-config-panel">
+            <div class="config-header">
+                <h3>Configuración del Sintetizador</h3>
+                <button id="closeConfigPanel" class="alien-button">✕</button>
+            </div>
+            <div class="config-body">
+                <div class="config-section">
+                    <h4>Escala Musical</h4>
+                    <select id="scaleSelector" class="alien-select">
+                        <option value="chromatic">Cromática (Todas las notas)</option>
+                        <option value="major">Mayor</option>
+                        <option value="minor">Menor</option>
+                        <option value="pentatonic">Pentatónica Mayor</option>
+                        <option value="blues">Blues</option>
+                        <option value="harmonicMinor">Menor Armónica</option>
+                        <option value="dorian">Modo Dórico</option>
+                        <option value="phrygian">Modo Frigio</option>
+                        <option value="lydian">Modo Lidio</option>
+                        <option value="mixolydian">Modo Mixolidio</option>
+                    </select>
+                </div>
+                
+                <div class="config-section">
+                    <h4>Nota Base</h4>
+                    <select id="rootNoteSelector" class="alien-select">
+                        <option value="0">C (Do)</option>
+                        <option value="1">C# (Do#)</option>
+                        <option value="2">D (Re)</option>
+                        <option value="3">D# (Re#)</option>
+                        <option value="4">E (Mi)</option>
+                        <option value="5">F (Fa)</option>
+                        <option value="6">F# (Fa#)</option>
+                        <option value="7">G (Sol)</option>
+                        <option value="8">G# (Sol#)</option>
+                        <option value="9">A (La)</option>
+                        <option value="10">A# (La#)</option>
+                        <option value="11">B (Si)</option>
+                    </select>
+                </div>
+                
+                <div class="config-section">
+                    <h4>Personalización de Teclas</h4>
+                    <div class="key-binding-info">
+                        <p>Clica en una tecla del teclado y luego presiona la tecla en tu teclado físico para reasignarla.</p>
+                    </div>
+                    <div class="key-binding-status">
+                        <span id="keyBindingStatus">Listo para reasignar</span>
+                    </div>
+                    <button id="resetKeyBindings" class="alien-config-button">Restaurar asignaciones predeterminadas</button>
+                </div>
+                
+                <div class="config-section">
+                    <button id="saveConfig" class="alien-config-button save-btn">Guardar Configuración</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Estilos para el sintetizador compacto y transparente -->
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600&family=Rajdhani:wght@500&display=swap');
+
+        /* Animaciones */
+        @keyframes glow {
+            0% { text-shadow: 0 0 10px rgba(98, 215, 255, 0.5), 0 0 20px rgba(98, 215, 255, 0.2); }
+            50% { text-shadow: 0 0 15px rgba(98, 215, 255, 0.8), 0 0 30px rgba(98, 215, 255, 0.5); }
+            100% { text-shadow: 0 0 10px rgba(98, 215, 255, 0.5), 0 0 20px rgba(98, 215, 255, 0.2); }
+        }
+
+        @keyframes pulse {
+            0% { opacity: 0.9; box-shadow: 0 0 10px rgba(98, 215, 255, 0.7); }
+            50% { opacity: 1; box-shadow: 0 0 20px rgba(98, 215, 255, 1); }
+            100% { opacity: 0.9; box-shadow: 0 0 10px rgba(98, 215, 255, 0.7); }
+        }
+
+        /* Estilos principales */
+        .alien-synth {
+            position: fixed;
+            right: 20px;
+            bottom: 20px;
+            width: 450px; /* Reducido de 580px */
+            background: rgba(10, 15, 34, 0.01); /* Mayor transparencia */
+            border-radius: 12px;
+            box-shadow: 0 0 30px rgba(98, 215, 255, 0.3);
+            color: #c7e5ff;
+            font-family: 'Orbitron', sans-serif;
+            z-index: 300;
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(98, 215, 255, 0.3);
+            transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            overflow: hidden;
+            padding-bottom: 8px;
+        }
+        
+        .alien-synth.compact {
+            max-height: calc(100vh - 100px); /* Evitar que ocupe toda la pantalla */
+        }
+
+        .alien-synth.minimized {
+            height: 45px !important;
+            width: 250px;
+        }
+
+        .alien-synth.minimized .synth-body {
+            height: 0;
+            opacity: 0;
+        }
+
+        .synth-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 15px;
+            background: rgba(16, 23, 46, 0.8);
+            border-top-left-radius: 12px;
+            border-top-right-radius: 12px;
+            border-bottom: 1px solid rgba(98, 215, 255, 0.4);
+        }
+
+        .synth-logo {
+            font-size: 16px;
+            font-weight: bold;
+            letter-spacing: 2px;
+        }
+
+        .alien-text {
+            color: #62d7ff;
+        }
+
+        .alien-glow {
+            color: #ffffff;
+            animation: glow 2s infinite;
+        }
+
+        .synth-controls {
+            display: flex;
+            gap: 8px;
+        }
+
+        .alien-button {
+            background: none;
+            border: 1px solid rgba(98, 215, 255, 0.4);
+            color: #62d7ff;
+            font-size: 14px;
+            width: 28px;
+            height: 28px;
+            border-radius: 5px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
+        }
+
+        .alien-button:hover {
+            background-color: rgba(98, 215, 255, 0.2);
+            box-shadow: 0 0 10px rgba(98, 215, 255, 0.4);
+        }
+
+        .alien-synth.minimized .alien-button .alien-icon {
+            transform: rotate(180deg);
+        }
+
+        .alien-small-button {
+            background: rgba(16, 23, 46, 0.9);
+            border: 1px solid rgba(98, 215, 255, 0.4);
+            color: #62d7ff;
+            font-size: 12px;
+            width: 22px;
+            height: 22px;
+            border-radius: 3px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .alien-small-button:hover {
+            background-color: rgba(98, 215, 255, 0.2);
+        }
+
+        .synth-body {
+            transition: all 0.5s;
+            overflow: hidden;
+        }
+
+        /* Display del sintetizador */
+        .synth-display {
+            padding: 8px 12px;
+            background: rgba(8, 12, 24, 0.6);
+            border-bottom: 1px solid rgba(98, 215, 255, 0.3);
+        }
+
+        .display-screen {
+            background: linear-gradient(180deg, rgba(8, 31, 40, 0.8), rgba(10, 25, 35, 0.8));
+            border-radius: 5px;
+            border: 1px solid rgba(98, 215, 255, 0.5);
+            padding: 8px 12px;
+            height: 60px; /* Reducido de 70px */
+            color: #62d7ff;
+            font-family: 'Rajdhani', sans-serif;
+            display: flex;
+            flex-wrap: wrap;
+            position: relative;
+        }
+
+        .display-left, .display-right {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .display-octave, .display-velocity, .display-note, .display-scale {
+            font-size: 14px;
+            padding: 3px 0;
+        }
+
+        .display-note {
+            font-size: 20px;
+            font-weight: bold;
+            text-align: right;
+        }
+
+        .display-scale {
+            text-align: right;
+        }
+
+        /* Panel de control */
+        .synth-panel {
+            display: flex;
+            background: rgba(16, 23, 46, 0.5);
+            padding: 10px; /* Reducido de 15px */
+            border-bottom: 1px solid rgba(98, 215, 255, 0.3);
+        }
+
+        .panel-section {
+            flex: 1;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px; /* Reducido de 15px */
+            align-items: center;
+            justify-content: space-around;
+        }
+
+        .control-knob {
+            position: relative;
+            width: 40px; /* Reducido de 50px */
+            height: 60px; /* Reducido de 70px */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .knob-ring {
+            width: 32px; /* Reducido de 40px */
+            height: 32px; /* Reducido de 40px */
+            border-radius: 50%;
+            border: 1px solid rgba(98, 215, 255, 0.5);
+            position: relative;
+        }
+
+        .knob {
+            position: absolute;
+            top: 4px;
+            left: 4px;
+            width: 24px; /* Reducido de 30px */
+            height: 24px; /* Reducido de 30px */
+            border-radius: 50%;
+            background: linear-gradient(145deg, rgba(20, 30, 60, 0.9), rgba(25, 40, 80, 0.9));
+            box-shadow: 0 0 5px rgba(98, 215, 255, 0.3);
+            cursor: pointer;
+        }
+
+        .knob-indicator {
+            position: absolute;
+            top: 4px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 2px;
+            height: 8px; /* Reducido de 10px */
+            background-color: #62d7ff;
+            border-radius: 1px;
+        }
+
+        .knob-label {
+            margin-top: 6px; /* Reducido de 8px */
+            font-size: 8px; /* Reducido de 10px */
+            text-align: center;
+            color: #c7e5ff;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px; /* Reducido de 5px */
+        }
+
+        .control-group label {
+            font-size: 8px; /* Reducido de 10px */
+            color: #c7e5ff;
+        }
+
+        .control-buttons {
+            display: flex;
+            gap: 4px; /* Reducido de 5px */
+        }
+
+        .control-slider {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            gap: 4px; /* Reducido de 5px */
+        }
+
+        .control-slider label {
+            font-size: 8px; /* Reducido de 10px */
+            color: #c7e5ff;
+            text-align: center;
+        }
+
+        #virtualVelocity {
+            -webkit-appearance: none;
+            appearance: none;
+            height: 4px;
+            background: rgba(98, 215, 255, 0.3);
+            border-radius: 2px;
+            outline: none;
+        }
+
+        #virtualVelocity::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 12px; /* Reducido de 15px */
+            height: 12px; /* Reducido de 15px */
+            border-radius: 50%;
+            background: linear-gradient(145deg, #62d7ff, #4aa9cc);
+            cursor: pointer;
+            box-shadow: 0 0 5px rgba(98, 215, 255, 0.5);
+        }
+
+        #virtualVelocity::-moz-range-thumb {
+            width: 12px; /* Reducido de 15px */
+            height: 12px; /* Reducido de 15px */
+            border-radius: 50%;
+            background: linear-gradient(145deg, #62d7ff, #4aa9cc);
+            cursor: pointer;
+            box-shadow: 0 0 5px rgba(98, 215, 255, 0.5);
+        }
+
+        .wave-selector {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px; /* Reducido de 5px */
+            width: 100%;
+        }
+
+        .wave-selector label {
+            font-size: 8px; /* Reducido de 10px */
+            color: #c7e5ff;
+        }
+
+        .wave-buttons {
+            display: flex;
+            gap: 3px; /* Reducido de 5px */
+            justify-content: center;
+        }
+
+        .wave-button {
+            width: 25px; /* Reducido de 30px */
+            height: 20px; /* Reducido de 25px */
+            background: rgba(16, 23, 46, 0.9);
+            border: 1px solid rgba(98, 215, 255, 0.4);
+            border-radius: 3px;
+            color: #62d7ff;
+            font-size: 11px; /* Reducido de 12px */
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .wave-button.active {
+            background-color: rgba(98, 215, 255, 0.3);
+            box-shadow: 0 0 8px rgba(98, 215, 255, 0.5);
+        }
+
+        /* Teclado */
+        .keyboard-container {
+            padding: 8px 10px; /* Reducido de 10px 15px */
+            background: rgba(12, 18, 35, 0.6);
+        }
+
+        .synth-keyboard {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 2px;
+        }
+
+        .key {
+            position: relative;
+            height: 40px; /* Reducido de 50px */
+            width: 36px; /* Reducido de 50px */
+            margin: 0 1px; /* Reducido de 2px */
+            border-radius: 4px;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            font-size: 10px; /* Reducido de 12px */
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.15s;
+            padding-bottom: 6px; /* Reducido de 8px */
+            user-select: none;
+        }
+
+        .key.white {
+            background: linear-gradient(180deg, #f2f9ff, #d9e9ff);
+            border: 1px solid rgba(98, 215, 255, 0.7);
+            color: #1f2d59;
+            box-shadow: 0 4px 0 rgba(98, 215, 255, 0.3);
+            z-index: 1;
+        }
+
+        .key.black {
+            background: linear-gradient(180deg, #313b5e, #1c2340);
+            border: 1px solid rgba(98, 215, 255, 0.5);
+            color: #c7e5ff;
+            box-shadow: 0 3px 0 rgba(11, 16, 33, 0.8);
+            z-index: 2;
+            height: 34px; /* Más pequeñas que las blancas */
+            margin-top: 0;
+        }
+
+        .key.white:hover {
+            background: linear-gradient(180deg, #ffffff, #e9f5ff);
+            box-shadow: 0 4px 0 rgba(98, 215, 255, 0.5);
+        }
+
+        .key.black:hover {
+            background: linear-gradient(180deg, #3a4573, #232b4f);
+            box-shadow: 0 3px 0 rgba(16, 23, 46, 0.8);
+        }
+
+        .key.white:active, .key.white.active {
+            transform: translateY(2px);
+            box-shadow: 0 2px 0 rgba(98, 215, 255, 0.3);
+        }
+
+        .key.black:active, .key.black.active {
+            transform: translateY(2px);
+            box-shadow: 0 1px 0 rgba(11, 16, 33, 0.8);
+        }
+
+        .key-binding {
+            position: absolute;
+            top: 3px;
+            right: 4px;
+            font-size: 7px; /* Reducido de 9px */
+            opacity: 0.7;
+        }
+
+        .key.rebinding {
+            border: 2px solid #ff62b5;
+            box-shadow: 0 0 10px rgba(255, 98, 181, 0.5);
+        }
+
+        /* Panel de configuración */
+        .synth-config-panel {
+            position: absolute;
+            top: 45px;
+            right: 0;
+            width: 100%;
+            background: rgba(10, 15, 34, 0.9);
+            border-radius: 8px;
+            border: 1px solid rgba(98, 215, 255, 0.5);
+            box-shadow: 0 0 20px rgba(98, 215, 255, 0.3);
+            z-index: 301;
+            display: none;
+            overflow: auto;
+            max-height: 70vh;
+        }
+
+        .config-header {
+            padding: 10px 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(98, 215, 255, 0.3);
+        }
+
+        .config-header h3 {
+            margin: 0;
+            font-size: 16px;
+            color: #62d7ff;
+        }
+
+        .config-body {
+            padding: 15px;
+        }
+
+        .config-section {
+            margin-bottom: 15px;
+        }
+
+        .config-section h4 {
+            margin: 0 0 8px 0;
+            font-size: 14px;
+            color: #c7e5ff;
+        }
+
+        .alien-select {
+            width: 100%;
+            padding: 6px 10px;
+            background: rgba(16, 23, 46, 0.9);
+            border: 1px solid rgba(98, 215, 255, 0.4);
+            border-radius: 4px;
+            color: #c7e5ff;
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 14px;
+            appearance: none;
+            cursor: pointer;
+        }
+
+        .alien-select:focus {
+            outline: none;
+            border-color: #62d7ff;
+            box-shadow: 0 0 8px rgba(98, 215, 255, 0.5);
+        }
+
+        .key-binding-info p {
+            font-size: 12px;
+            line-height: 1.4;
+            margin: 0 0 8px 0;
+        }
+
+        .key-binding-status {
+            background: rgba(16, 23, 46, 0.6);
+            padding: 8px 12px;
+            border-radius: 4px;
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+
+        .alien-config-button {
+            background: rgba(16, 23, 46, 0.9);
+            border: 1px solid rgba(98, 215, 255, 0.4);
+            border-radius: 4px;
+            color: #c7e5ff;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 13px;
+            padding: 8px 15px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .alien-config-button:hover {
+            background: rgba(25, 35, 70, 0.9);
+            box-shadow: 0 0 8px rgba(98, 215, 255, 0.5);
+        }
+
+        .save-btn {
+            background: rgba(25, 60, 100, 0.9);
+            width: 100%;
+        }
+
+        .save-btn:hover {
+            background: rgba(35, 75, 120, 0.9);
+        }
+    </style>
 </body>
 </html>

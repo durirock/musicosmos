@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0", maximum-scale=1.0, user-scalable=no">
     <title>Musicosmos - Universo Musical Interactivo</title>
     <style>
         body {
@@ -262,6 +262,13 @@
     </style>
 </head>
 <body>
+    <div id="touch-controls" class="touch-controls-container">
+        <div id="joystick-container">
+            <div id="joystick-knob"></div>
+        </div>
+        <div id="action-buttons-container">
+            <div id="button-up" class="action-button">▲</div> <div id="button-down" class="action-button">▼</div> </div>
+    </div>
     <div id="info">
         <h1>Musicosmos</h1>
         <p>Conecta un dispositivo MIDI y toca para crear galaxias musicales.</p>
@@ -281,11 +288,7 @@
         <button id="btnGoToCoords">Ir a Coordenadas</button>
     </div>
     
-    <div id="viewControls">
-        <button id="btnFirstPerson">Vista en Primera Persona</button>
-        <button id="btnThirdPerson">Vista en Tercera Persona</button>
-        <button id="btnBirdEye">Vista de Pájaro</button>
-    </div>
+
     
     <button class="btn-settings" id="btnSettings">⚙️</button>
     
@@ -337,6 +340,88 @@
           
           <!-- Estilos para el panel de configuración -->
           <style>
+            /* Controles Táctiles */
+            .touch-controls-container {
+                position: absolute;
+                bottom: 0;
+                left: 0;
+                width: 100%;
+                height: 100%; /* Ocupa toda la pantalla para capturar gestos de cámara */
+                pointer-events: none; /* Por defecto no intercepta, solo los hijos con 'auto' */
+                display: none; /* Oculto por defecto, se muestra con JS */
+                z-index: 50; /* Asegúrate de que esté por encima del canvas pero debajo de menús modales si los tienes */
+            }
+
+            #joystick-container {
+                position: absolute;
+                bottom: 30px;
+                left: 30px;
+                width: 150px;
+                height: 150px;
+                background-color: rgba(50, 50, 80, 0.3);
+                border-radius: 50%;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                pointer-events: auto; /* Permite interacción con el joystick */
+                border: 2px solid rgba(120, 120, 150, 0.5);
+                user-select: none; /* Evitar selección de texto */
+                -webkit-user-select: none; /* Safari */
+                -ms-user-select: none; /* IE 10+ */
+            }
+
+            #joystick-knob {
+                width: 70px;
+                height: 70px;
+                background-color: rgba(100, 100, 150, 0.7);
+                border-radius: 50%;
+                border: 2px solid rgba(180, 180, 220, 0.8);
+                position: absolute; /* Se moverá dentro del contenedor del joystick */
+                cursor: pointer;
+                user-select: none;
+                -webkit-user-select: none;
+                -ms-user-select: none;
+            }
+
+            #action-buttons-container {
+                position: absolute;
+                bottom: 40px;
+                right: 30px;
+                display: flex;
+                flex-direction: column;
+                gap: 20px;
+                pointer-events: auto; /* Permite interacción con los botones */
+                user-select: none;
+                -webkit-user-select: none;
+                -ms-user-select: none;
+            }
+
+            .action-button {
+                width: 70px;
+                height: 70px;
+                background-color: rgba(100, 100, 150, 0.6);
+                border-radius: 50%;
+                border: 2px solid rgba(180, 180, 220, 0.7);
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                font-size: 24px;
+                font-weight: bold;
+                color: white;
+                cursor: pointer;
+                user-select: none;
+                -webkit-user-select: none;
+                -ms-user-select: none;
+            }
+            .action-button:active {
+                background-color: rgba(120, 120, 180, 0.8);
+            }
+
+            /* Asegurar que el body no haga scroll en táctil */
+            body.touch-active {
+                overscroll-behavior: none;
+            }
+
             .galaxy-settings {
               margin-top: 20px;
               padding-top: 15px;
@@ -452,7 +537,7 @@
             
             // El botón aplicar ahora solo guarda la configuración
             document.getElementById('applyGalaxySettings').textContent = 'Guardar Configuración';
-            document.getElementById('applyGalaxySettings').addEventListener('click', saveGalaxySettings);
+            document.getElementById('applyGalaxySettings').addEventListener('click', applyGalaxySettings);
             
             // Botón restaurar valores
             document.getElementById('resetGalaxySettings').addEventListener('click', resetGalaxySettings);
@@ -602,6 +687,16 @@
     <script>
         // Variables principales
         let scene, camera, renderer;
+        let nebulaRadarElement, radarArrowElement, radarDotElement;
+        let ultimaCancionUrl = null; // Aquí guardaremos la URL de la última canción usada
+        // AÑADIR ESTAS VARIABLES PARA EL CONTROL DE LA ÓRBITA
+        // ----------------------------------------------------
+        let currentOrbitAngleH = 0; // Ángulo horizontal
+        let currentOrbitAngleV = 0.2; // Ángulo vertical (un poco picado)
+        // ----------------------------------------------------
+        let clock = new THREE.Clock();
+        let updatableSpecialFeatures = [];
+        let audioListener;
         let galaxies = {};
         let particles = [];  // Para mezcla de colores global
         let moveForward = false;
@@ -619,8 +714,61 @@
         let proceduralGenerator; // Añade esta línea
         let hyperspaceEffect;
         let hyperspaceModeActive = false;
-        
+        // AÑADIR ESTAS VARIABLES GLOBALES PARA EL MODO ÓRBITA
+        // ----------------------------------------------------
+        let isOrbitingNebula = false;
+        let orbitingNebulaInstance = null;
+        let orbitDistance = 200; // Distancia de la órbita
+        let orbitAngle = 0.0;
+        const ORBIT_SPEED = 0.0005; // La velocidad a la que el avatar girará automáticamente
+        const MIN_ORBIT_DISTANCE = 40;
+        const MAX_ORBIT_DISTANCE = 500;
+        const ORBIT_ZOOM_SPEED = 2.5; // Velocidad para acercarse/alejarse con teclas en modo órbita.
 
+        let playerOrbitSpeed = 0.0; // AÑADIDO: Controlará la velocidad orbital del jugador con A y D.
+
+        // AÑADIR ESTAS NUEVAS VARIABLES GLOBALES PARA EL ARRASTRE DE PÚLSARES
+        // ----------------------------------------------------
+        let raycaster = new THREE.Raycaster();
+        let mousePosition = new THREE.Vector2();
+        let draggedPulsar = null; // Guardará la instancia del púlsar que estamos arrastrando
+
+         // AÑADE ESTAS DOS LÍNEAS PARA EVITAR EL CRASH
+        // ----------------------------------------------------
+        let radioNebulaInstance = null;
+        let radioNebulaInstanceTaguaTagua = null;
+        let audioContext;
+
+        // AÑADE ESTA CONSTANTE PARA LA CAPA DE CLIC
+        const CLICKABLE_LAYER = 1;
+
+
+        // ----------------------------------------------------
+
+        // ----------------------------------------------------
+        
+        // AÑADIR ESTA NUEVA FUNCIÓN
+// ----------------------------------------------------
+        function elegirSiguienteCancion() {
+            // Si solo hay una canción en la biblioteca, no hay opción, devolvemos esa.
+            if (miBibliotecaMusical.length <= 1) {
+                return miBibliotecaMusical[0];
+            }
+
+            let cancionElegida;
+            // Usamos un bucle 'do-while' para asegurarnos de que la nueva canción
+            // sea diferente a la última. Repetirá el sorteo si sale la misma.
+            do {
+                const indiceAleatorio = Math.floor(Math.random() * miBibliotecaMusical.length);
+                cancionElegida = miBibliotecaMusical[indiceAleatorio];
+            } while (cancionElegida === ultimaCancionUrl);
+
+            // Actualizamos nuestra memoria con la nueva canción que vamos a usar
+            ultimaCancionUrl = cancionElegida;
+            
+            // Devolvemos la canción que no se repite
+            return cancionElegida;
+        }
         // Añade esto después de las variables principales (let scene, camera, renderer; etc.)
 
         // Sistema de generación procedural para Musicosmos
@@ -698,6 +846,65 @@
                 if (this.pseudoRandom(chunkSeed + 123) < 0.10) {
                     this.generateNebula(chunkObject, chunkSeed);
                 }
+
+                // AÑADIR ESTE BLOQUE PARA GENERAR PULSARES MP3
+                // -------------------------------------------------------------------
+                const pulsarChance = 0.02; 
+                    if (Math.random() < pulsarChance) {
+                        const pulsarId = `pulsar_${x}_${y}_${z}`;
+                        if (!gestorDePulsares.activos[pulsarId]) {
+                            const MIN_DISTANCE_BETWEEN_PULSARS = 1200;
+                            let isTooClose = false;
+
+                            const offsetX = (Math.random() - 0.5) * this.chunkSize * 0.8;
+                            const offsetY = (Math.random() - 0.5) * this.chunkSize * 0.8;
+                            const offsetZ = (Math.random() - 0.5) * this.chunkSize * 0.8;
+                            const potentialPosition = new THREE.Vector3(chunkObject.position.x + offsetX, chunkObject.position.y + offsetY, chunkObject.position.z + offsetZ);
+
+                            for (const existingPulsarId in gestorDePulsares.activos) {
+                                const existingPulsar = gestorDePulsares.activos[existingPulsarId];
+                                if (potentialPosition.distanceTo(existingPulsar.nebula.initialStaticPosition) < MIN_DISTANCE_BETWEEN_PULSARS) {
+                                    isTooClose = true;
+                                    break;
+                                }
+                            }
+
+                            if (!isTooClose) {
+                                console.log(`✨ Creando Pulsar Persistente en chunk [${x}, ${y}, ${z}]`);
+                                
+                                // ¡Punto Clave! Elegimos la canción AHORA, en el nacimiento.
+                                const cancionUrl = elegirSiguienteCancion();
+
+                                const audioElement = new Audio();
+                                audioElement.crossOrigin = "anonymous";
+                                audioElement.loop = true;
+                                // Guardamos la URL permanentemente en el objeto del pulsar
+                                audioElement.url = cancionUrl;
+
+                                const analyserNode = audioListener.context.createAnalyser();
+                                analyserNode.fftSize = 512;
+                                analyserNode.smoothingTimeConstant = 0.75;
+                                
+                                const positionalAudio = new THREE.PositionalAudio(audioListener);
+                                const radioNebula = new RadioNebula(scene, potentialPosition, analyserNode, GALAXY_PULSAR_CONFIG, 'mp3', false);
+                                radioNebula.particlesObject.add(positionalAudio);
+
+                                gestorDePulsares.activos[pulsarId] = {
+                                    id: pulsarId,
+                                    nebula: radioNebula,
+                                    audio: audioElement,
+                                    analyser: analyserNode,
+                                    positionalAudio: positionalAudio,
+                                    url: cancionUrl, // Guardamos la URL asignada
+                                    tiempoGuardado: 0, // NUEVO: Para guardar el tiempo de reproducción
+                                    mediaSource: null,
+                                    isLoaded: false,
+                                    isPlaying: false
+                                };
+                            }
+                        }
+                    }
+
                 
                 // Aplicar aparición gradual
                 this.applyFadeInEffect(chunkObject);
@@ -1389,6 +1596,434 @@
             }
         }
 
+        class RadioNebula {
+            constructor(scene, initialStaticPosition, analyser, initialConfig, type = 'mp3', isMajestic = false) {
+                this.scene = scene;
+                this.initialStaticPosition = initialStaticPosition.clone(); 
+                this.analyser = analyser;
+                this.config = initialConfig; 
+                this.type = type; 
+                this.isMajestic = isMajestic; 
+
+                this.orbitCenter = this.initialStaticPosition.clone(); 
+                this.orbitAmplitude = new THREE.Vector3(80 + Math.random() * 70, 20 + Math.random() * 30, 80 + Math.random() * 70);
+                this.orbitPhase = new THREE.Vector3(Math.random() * Math.PI * 2, Math.random() * Math.PI * 2, Math.random() * Math.PI * 2);
+                this.orbitSpeed = new THREE.Vector3(
+                    (Math.random() - 0.5) * 0.00015, 
+                    (Math.random() - 0.5) * 0.00008,
+                    (Math.random() - 0.5) * 0.00015
+                );
+                this.currentDynamicPosition = this.initialStaticPosition.clone(); 
+
+                this.baseColorPalette = (type === 'tagua_tagua') ? TAGUA_TAGUA_BASE_COLORS_HSL : MAJESTIC_NEBULA_COLORS_HSL; 
+                this.coreColorPalette = (type === 'tagua_tagua') ? TAGUA_TAGUA_CORE_COLORS_HSL : CORE_PULSATING_COLORS_HSL; 
+
+                this.bufferLength = this.analyser.frequencyBinCount;
+                this.particleCount = 12000; 
+                if (this.isMajestic) this.particleCount = 15000; 
+
+                this.particlesObject = new THREE.Object3D();
+                this.particlesObject.position.copy(this.currentDynamicPosition); 
+                this.scene.add(this.particlesObject);
+                this.geometry = new THREE.BufferGeometry();
+                
+                this.currentBaseColorIndex = Math.floor(Math.random() * this.baseColorPalette.length);
+                this.targetBaseColorIndex = this.currentBaseColorIndex;
+                this.colorTransitionProgress = 1;
+                
+                this.currentCoreColorIndex = Math.floor(Math.random() * this.coreColorPalette.length);
+                this.targetCoreColorIndex = this.currentCoreColorIndex;
+                this.coreColorTransitionProgress = 1;
+                this.currentCoronaColorIndex = 0; 
+
+                const particleTexture = this.createParticleTexture(); 
+                this.material = new THREE.PointsMaterial({
+                    map: particleTexture,
+                    vertexColors: true,
+                    transparent: true,
+                    opacity: 0.9, 
+                    blending: THREE.AdditiveBlending,
+                    depthWrite: false,
+                    sizeAttenuation: true, 
+                    size: 1.0, 
+                    alphaTest: 0.05 
+                });
+                this.maxExpansionRadius = this.config.baseSize;
+                this.coreRadius = this.config.baseSize * 0.15;
+                this.coronaRadius = this.isMajestic ? this.config.baseSize * 0.35 : 0; 
+                this.coronaParticleRatio = this.isMajestic ? 0.15 : 0; 
+
+                this.baseRotationSpeed = new THREE.Vector3(0.0007, 0.0012, 0.0005);
+                this.particleAttributes = {
+                    positions: new Float32Array(this.particleCount * 3), colors: new Float32Array(this.particleCount * 3),
+                    targetColors: new Float32Array(this.particleCount * 3), alphas: new Float32Array(this.particleCount),
+                    sizes: new Float32Array(this.particleCount), velocities: new Float32Array(this.particleCount * 3),
+                    lifetimes: new Float32Array(this.particleCount), initialDistances: new Float32Array(this.particleCount),
+                    isCoreParticle: new Uint8Array(this.particleCount), 
+                    isTracerParticle: new Uint8Array(this.particleCount),
+                    isCoronaParticle: this.isMajestic ? new Uint8Array(this.particleCount) : null 
+                };
+                 // AÑADIR ESTAS NUEVAS PROPIEDADES AL CONSTRUCTOR DE RadioNebula
+                // ----------------------------------------------------
+                this.userDragOffset = new THREE.Vector3(0, 0, 0); // Desplazamiento temporal por arrastre
+                this.momentumVelocity = new THREE.Vector3(0, 0, 0); // Velocidad para el efecto de inercia
+                this.isBeingDragged = false; // Bandera para saber si está siendo arrastrado
+                // ----------------------------------------------------
+
+                this._initParticles();
+
+                this.points = new THREE.Points(this.geometry, this.material);
+                this.particlesObject.add(this.points);
+                this.lastUpdateTime = Date.now();
+                this.lastColorChangeTime = Date.now();
+                this.lastCoreColorChangeTime = Date.now();
+                const heartGeometry = new THREE.SphereGeometry(this.coreRadius * 0.25, 12, 8);
+                const heartMaterial = new THREE.MeshPhongMaterial({
+                    color: 0xffffff, emissive: 0x555555, transparent: true, opacity: 0.15,
+                    blending: THREE.AdditiveBlending, shininess: 50, specular: 0xaaaaaa
+                });
+                this.nebulaHeart = new THREE.Mesh(heartGeometry, heartMaterial);
+                this.particlesObject.add(this.nebulaHeart);
+                 // --- PEGA EL BLOQUE QUE CORTASTE JUSTO AQUÍ ---
+                const clickTargetGeometry = new THREE.SphereGeometry(this.maxExpansionRadius * 0.6, 16, 16);
+                const clickTargetMaterial = new THREE.MeshBasicMaterial({ visible: false, side: THREE.DoubleSide }); // Invisible
+                this.nebulaClickTarget = new THREE.Mesh(clickTargetGeometry, clickTargetMaterial);
+                this.nebulaClickTarget.parentNebula = this; // Creamos una referencia para saber a quién pertenece
+                this.nebulaClickTarget.layers.set(CLICKABLE_LAYER); // <-- AÑADE ESTA LÍNEA
+
+                this.particlesObject.add(this.nebulaClickTarget);
+                // --- HASTA AQUÍ ---
+            }
+
+            updateOrbitalPosition(time) {
+                // 1. Calculamos la posición orbital base (como antes)
+                const baseOrbitX = this.orbitCenter.x + Math.sin(time * this.orbitSpeed.x + this.orbitPhase.x) * this.orbitAmplitude.x;
+                const baseOrbitY = this.orbitCenter.y + Math.cos(time * this.orbitSpeed.y + this.orbitPhase.y) * this.orbitAmplitude.y;
+                const baseOrbitZ = this.orbitCenter.z + Math.sin(time * this.orbitSpeed.z + this.orbitPhase.z) * this.orbitAmplitude.z;
+
+                // 2. Aplicamos la física de momentum y retorno (¡la nueva magia!)
+                //    Esto solo se ejecuta si NO estamos arrastrando el púlsar.
+                if (!this.isBeingDragged) {
+                    // Aplicamos la velocidad del momentum que guardamos al arrastrar
+                    this.userDragOffset.add(this.momentumVelocity);
+                    // Frenamos el momentum un 5% en cada fotograma (amortiguación)
+                    this.momentumVelocity.multiplyScalar(0.95);
+                    // Atraemos el púlsar de vuelta a su órbita original (efecto goma elástica)
+                    this.userDragOffset.lerp(new THREE.Vector3(0, 0, 0), 0.02);
+                }
+
+                // 3. La posición final es la órbita base + nuestro desplazamiento temporal
+                this.currentDynamicPosition.set(
+                    baseOrbitX + this.userDragOffset.x,
+                    baseOrbitY + this.userDragOffset.y,
+                    baseOrbitZ + this.userDragOffset.z
+                );
+
+                // 4. Actualizamos la posición del objeto en la escena
+                this.particlesObject.position.copy(this.currentDynamicPosition);
+            }
+
+
+
+
+            applyConfigChange() {
+                this.maxExpansionRadius = this.config.baseSize;
+                this.coreRadius = this.config.baseSize * 0.15;
+                if (this.nebulaHeart) {
+                    this.nebulaHeart.geometry.dispose();
+                    this.nebulaHeart.geometry = new THREE.SphereGeometry(this.coreRadius * 0.25, 12, 8);
+                }
+                if (this.isMajestic) {
+                    this.coronaRadius = this.config.baseSize * 0.35;
+                }
+            }
+
+            createParticleTexture() {
+                const canvas = document.createElement('canvas');
+                canvas.width = 128; 
+                canvas.height = 128;
+                const context = canvas.getContext('2d');
+                context.fillStyle = 'rgba(0,0,0,0)';
+                context.fillRect(0, 0, canvas.width, canvas.height);
+                const centerX = canvas.width / 2;
+                const centerY = canvas.height / 2;
+                const radius = canvas.width / 2 - 2;
+                const gradient = context.createRadialGradient(centerX, centerY, 0, centerX, centerY, radius);
+                gradient.addColorStop(0, 'rgba(255,255,255,1)');
+                gradient.addColorStop(0.7, 'rgba(255,255,255,0.9)');
+                gradient.addColorStop(0.9, 'rgba(255,255,255,0.3)');
+                gradient.addColorStop(1, 'rgba(255,255,255,0)');
+                context.beginPath();
+                context.arc(centerX, centerY, radius, 0, Math.PI * 2, false);
+                context.fillStyle = gradient;
+                context.fill();
+                const innerGradient = context.createRadialGradient(centerX, centerY, 0, centerX, centerY, radius * 0.5 );
+                innerGradient.addColorStop(0, 'rgba(255,255,255,0.8)');
+                innerGradient.addColorStop(1, 'rgba(255,255,255,0)');
+                context.beginPath();
+                context.arc(centerX, centerY, radius * 0.5, 0, Math.PI * 2, false);
+                context.fillStyle = innerGradient;
+                context.fill();
+                const texture = new THREE.CanvasTexture(canvas);
+                texture.needsUpdate = true; 
+                return texture;
+            }
+
+
+            _initParticles() {
+                const { positions, colors, targetColors, alphas, sizes, velocities, lifetimes, initialDistances, isCoreParticle, isTracerParticle, isCoronaParticle } = this.particleAttributes;
+                for (let i = 0; i < this.particleCount; i++) { this._spawnParticle(i); }
+                this.geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+                this.geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+                this.geometry.setAttribute('alpha', new THREE.BufferAttribute(alphas, 1));
+                this.geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+            }
+
+            _spawnParticle(i, forceCore = false) {
+                const { positions, colors, targetColors, alphas, sizes, velocities, lifetimes, initialDistances, isCoreParticle, isTracerParticle, isCoronaParticle } = this.particleAttributes;
+                const i3 = i * 3; let r;
+                
+                isCoreParticle[i] = 0;
+                isTracerParticle[i] = 0;
+                if (this.isMajestic && isCoronaParticle) isCoronaParticle[i] = 0;
+
+                if (this.isMajestic && Math.random() < this.coronaParticleRatio) {
+                    if(isCoronaParticle) isCoronaParticle[i] = 1;
+                    r = this.coreRadius * 0.8 + Math.random() * (this.coronaRadius - this.coreRadius * 0.8); 
+                } else if (forceCore || Math.random() < (0.10 + Math.random() * 0.08)) {
+                    isCoreParticle[i] = 1;
+                    r = Math.pow(Math.random(), 3.0) * this.coreRadius;
+                } else {
+                    const peripheryFactor = 0.80;
+                    r = this.coreRadius + Math.pow(Math.random(), 1.4) * (this.maxExpansionRadius * peripheryFactor - this.coreRadius);
+                    if (!isCoreParticle[i] && (!this.isMajestic || (isCoronaParticle && !isCoronaParticle[i])) && Math.random() < 0.008) { 
+                        isTracerParticle[i] = 1;
+                    }
+                }
+                
+                initialDistances[i] = r;
+                const theta = Math.random() * Math.PI * 2; const phi = Math.acos(2 * Math.random() - 1);
+                positions[i3] = r * Math.sin(phi) * Math.cos(theta); positions[i3 + 1] = r * Math.sin(phi) * Math.sin(theta); positions[i3 + 2] = r * Math.cos(phi);
+                
+                let chosenColorHSL; let finalColor = new THREE.Color();
+
+                if (this.isMajestic && isCoronaParticle && isCoronaParticle[i]) {
+                    chosenColorHSL = MAJESTIC_CORONA_COLORS_HSL[this.currentCoronaColorIndex % MAJESTIC_CORONA_COLORS_HSL.length];
+                    finalColor.setHSL(chosenColorHSL.h, chosenColorHSL.s, chosenColorHSL.l * (0.8 + Math.random() * 0.4)); 
+                    alphas[i] = 0.3 + Math.random() * 0.4; 
+                    sizes[i] = 2.5 + Math.random() * 3.0; 
+                } else if (isTracerParticle[i]) {
+                    const tracerBaseColor = this.baseColorPalette[this.currentBaseColorIndex % this.baseColorPalette.length];
+                    chosenColorHSL = { h: (tracerBaseColor.h + 0.4) % 1, s: 0.08, l: 0.95 }; 
+                    finalColor.setHSL(chosenColorHSL.h, chosenColorHSL.s, chosenColorHSL.l + (Math.random()-0.5)*0.015); alphas[i] = 0.01 + Math.random() * 0.20;
+                    sizes[i] = 3.0 + Math.random() * 2.5;
+                } else if (isCoreParticle[i]) {
+                    chosenColorHSL = this.coreColorPalette[this.currentCoreColorIndex % this.coreColorPalette.length];
+                    const coreLuminosity = chosenColorHSL.l + (Math.random() - 0.5) * 0.005;
+                    finalColor.setHSL(chosenColorHSL.h, chosenColorHSL.s, coreLuminosity); alphas[i] = 0.5 + Math.random() * 0.3;
+                    sizes[i] = 0.7 + Math.random() * 2.0;
+                } else { 
+                    chosenColorHSL = this.baseColorPalette[this.currentBaseColorIndex % this.baseColorPalette.length];
+                    finalColor.setHSL(chosenColorHSL.h, chosenColorHSL.s, chosenColorHSL.l + (Math.random()-0.5)*0.015); alphas[i] = 0.01 + Math.random() * 0.20;
+                    sizes[i] = 0.7 + Math.random() * 2.0;
+                }
+                colors[i3] = finalColor.r; colors[i3 + 1] = finalColor.g; colors[i3 + 2] = finalColor.b;
+                targetColors[i3] = finalColor.r; targetColors[i3+1] = finalColor.g; targetColors[i3+2] = finalColor.b;
+                
+                const speedFactor = (this.isMajestic && isCoronaParticle && isCoronaParticle[i]) ? (0.005 + Math.random() * 0.02) : (0.015 + Math.random() * 0.08); 
+                 if (r > 0.01) { velocities[i3] = positions[i3] / r * speedFactor * 0.015; velocities[i3 + 1] = positions[i3 + 1] / r * speedFactor * 0.015; velocities[i3 + 2] = positions[i3 + 2] / r * speedFactor * 0.015;} 
+                 else { velocities[i3] = (Math.random() - 0.5) * 0.0015; velocities[i3+1] = (Math.random() - 0.5) * 0.0015; velocities[i3+2] = (Math.random() - 0.5) * 0.0015;}
+                velocities[i3] += (Math.random() - 0.5) * 0.01; velocities[i3 + 1] += (Math.random() - 0.5) * 0.01; velocities[i3 + 2] += (Math.random() - 0.5) * 0.01;
+                lifetimes[i] = (this.isMajestic && isCoronaParticle && isCoronaParticle[i]) ? (15 + Math.random() * 10) : (7 + Math.random() * 15); 
+            }
+
+            update(currentFrequencyData, currentTimeDomainData, deltaTime) { 
+                 if (!this.analyser || !this.points) return;
+                const now = Date.now();
+                this.analyser.getByteFrequencyData(currentFrequencyData);
+                this.analyser.getByteTimeDomainData(currentTimeDomainData);
+
+                let sumAmplitudes = 0;
+                for (let i = 0; i < currentTimeDomainData.length; i++) { sumAmplitudes += Math.abs(currentTimeDomainData[i] - 128); }
+                const averageVolume = Math.min(1, (sumAmplitudes / currentTimeDomainData.length) / 40);
+                
+                const bass = (currentFrequencyData[Math.floor(this.bufferLength * 0.005)] + currentFrequencyData[Math.floor(this.bufferLength * 0.025)]) / 2 / 255;
+                const mids = (currentFrequencyData[Math.floor(this.bufferLength * 0.12)] + currentFrequencyData[Math.floor(this.bufferLength * 0.22)]) / 2 / 255;
+                const highs = (currentFrequencyData[Math.floor(this.bufferLength * 0.35)]+ currentFrequencyData[Math.floor(this.bufferLength * 0.50)]) / 2 / 255;
+
+                const effectiveRotationSpeed = this.config.rotationSpeedFactor / 0.0012;
+                this.particlesObject.rotation.x += this.baseRotationSpeed.x * effectiveRotationSpeed * deltaTime * (0.08 + averageVolume * 0.25);
+                this.particlesObject.rotation.y += this.baseRotationSpeed.y * effectiveRotationSpeed * deltaTime * (0.08 + averageVolume * 0.5);
+                this.particlesObject.rotation.z += this.baseRotationSpeed.z * effectiveRotationSpeed * deltaTime * (0.08 + averageVolume * 0.25);
+                const pulseCycle = now * 0.001 * (0.5 + this.config.pulseSpeedFactor * 50);
+                const easedVolume = (Math.sin(pulseCycle - Math.PI / 2) + 1) / 2 * averageVolume;
+                const targetExpansionFactor = 0.20 + easedVolume * this.config.pulseIntensity;
+                this.currentExpansionFactor = this.currentExpansionFactor === undefined ? 1 : this.currentExpansionFactor;
+                this.currentExpansionFactor = THREE.MathUtils.lerp(this.currentExpansionFactor, targetExpansionFactor, this.config.pulseSpeedFactor);
+                
+                const coreTargetColor = this.coreColorPalette[this.currentCoreColorIndex % this.coreColorPalette.length]; 
+                const heartLuminosity = Math.min(0.80, coreTargetColor.l * (0.3 + averageVolume * 0.7) + bass * this.config.coreBrightness);
+                this.nebulaHeart.material.color.setHSL(coreTargetColor.h, coreTargetColor.s * 0.75, heartLuminosity);
+                this.nebulaHeart.material.emissive.setHSL(coreTargetColor.h, coreTargetColor.s * 0.75, heartLuminosity * 0.4);
+                this.nebulaHeart.material.opacity = THREE.MathUtils.lerp(this.nebulaHeart.material.opacity, 0.02 + bass * 0.20 + averageVolume * 0.10, 0.035);
+                const heartScale = 0.6 + averageVolume * 1.0 + bass * 0.7;
+                this.nebulaHeart.scale.set(heartScale, heartScale, heartScale);
+
+                const colorChangeInterval = 11000 + Math.random()*2500;
+                if (now - this.lastColorChangeTime > colorChangeInterval) {
+                    this.targetBaseColorIndex = (this.currentBaseColorIndex + 1 + Math.floor(Math.random()*(this.baseColorPalette.length-1))) % this.baseColorPalette.length;
+                    if (this.targetBaseColorIndex === this.currentBaseColorIndex && this.baseColorPalette.length > 1) { this.targetBaseColorIndex = (this.targetBaseColorIndex + 1) % this.baseColorPalette.length;}
+                    this.colorTransitionProgress = 0; this.lastColorChangeTime = now;
+                }
+                if (this.colorTransitionProgress < 1) { this.colorTransitionProgress = Math.min(1, this.colorTransitionProgress + deltaTime * this.config.outerColorSpeed); } else { this.currentBaseColorIndex = this.targetBaseColorIndex; }
+                
+                const coreColorChangeInterval = 2500 + Math.random() * 800;
+                if (now - this.lastCoreColorChangeTime > coreColorChangeInterval) {
+                    this.targetCoreColorIndex = (this.currentCoreColorIndex + 1) % this.coreColorPalette.length;
+                    this.coreColorTransitionProgress = 0; this.lastCoreColorChangeTime = now;
+                }
+                 if (this.coreColorTransitionProgress < 1) { this.coreColorTransitionProgress = Math.min(1, this.coreColorTransitionProgress + deltaTime * this.config.coreColorSpeed); } else { this.currentCoreColorIndex = this.targetCoreColorIndex; }
+
+                if (this.isMajestic) { 
+                    const coronaColorChangeInterval = 7000 + Math.random() * 2000; 
+                    if (now - (this.lastCoronaColorChangeTime || 0) > coronaColorChangeInterval) {
+                        this.currentCoronaColorIndex = (this.currentCoronaColorIndex + 1) % MAJESTIC_CORONA_COLORS_HSL.length;
+                        this.lastCoronaColorChangeTime = now;
+                    }
+                }
+
+                const { positions, colors, alphas, sizes, velocities, lifetimes, initialDistances, isCoreParticle, isTracerParticle, isCoronaParticle } = this.particleAttributes;
+                for (let i = 0; i < this.particleCount; i++) {
+                    const i3 = i * 3; lifetimes[i] -= deltaTime;
+                    if (lifetimes[i] <= 0) { 
+                        let forceCoreOnRespawn = false; if (averageVolume > 0.05) { forceCoreOnRespawn = Math.random() < (averageVolume * 0.45); } 
+                        this._spawnParticle(i, forceCoreOnRespawn); continue; 
+                    }
+                    
+                    velocities[i3] = THREE.MathUtils.lerp(velocities[i3], (Math.random() - 0.5) * 0.006 * (1 + bass*2.5), 0.035);
+                    velocities[i3+1] = THREE.MathUtils.lerp(velocities[i3+1], (Math.random() - 0.5) * 0.006 * (1 + bass*2.5), 0.035);
+                    velocities[i3+2] = THREE.MathUtils.lerp(velocities[i3+2], (Math.random() - 0.5) * 0.006 * (1 + bass*2.5), 0.035);
+                    
+                    positions[i3] += velocities[i3] * deltaTime * (1 + averageVolume * 28); 
+                    positions[i3 + 1] += velocities[i3 + 1] * deltaTime * (1 + averageVolume * 28); 
+                    positions[i3 + 2] += velocities[i3 + 2] * deltaTime * (1 + averageVolume * 28);
+                    
+                     const currentDist = Math.sqrt(positions[i3]**2 + positions[i3+1]**2 + positions[i3+2]**2);
+                    let expansionLimitFactor = 1.0;
+                    if (this.isMajestic && isCoronaParticle && isCoronaParticle[i]) {
+                        expansionLimitFactor = 1.1; 
+                    } else if (isCoreParticle[i]) {
+                        expansionLimitFactor = 1.0;
+                    } else if (isTracerParticle[i]) {
+                        expansionLimitFactor = 0.95;
+                    } else { 
+                        expansionLimitFactor = 0.88;
+                    }
+
+                    if (currentDist > 0.01) { 
+                        const desiredDist = initialDistances[i] * this.currentExpansionFactor * expansionLimitFactor; 
+                        const scaleToApply = THREE.MathUtils.lerp(1, desiredDist / currentDist, 0.018); 
+                        positions[i3] *= scaleToApply; positions[i3+1] *= scaleToApply; positions[i3+2] *= scaleToApply;
+                    }
+                    
+                    let sourceColorHSL, targetColorHSL, transitionProg; 
+                    let currentParticleColor = new THREE.Color(colors[i3], colors[i3+1], colors[i3+2]); 
+                    let finalTargetColor = new THREE.Color();
+
+                    if (this.isMajestic && isCoronaParticle && isCoronaParticle[i]) {
+                        const coronaBaseColor = MAJESTIC_CORONA_COLORS_HSL[this.currentCoronaColorIndex % MAJESTIC_CORONA_COLORS_HSL.length];
+                        finalTargetColor.setHSL(
+                            coronaBaseColor.h,
+                            coronaBaseColor.s,
+                            coronaBaseColor.l * (0.7 + averageVolume * 0.5 + highs * 0.3) 
+                        );
+                    } else if(isTracerParticle[i]) { 
+                        const tracerBaseColor = this.baseColorPalette[this.currentBaseColorIndex % this.baseColorPalette.length];
+                        const tracerActualHSL = {h: (tracerBaseColor.h + 0.4 + i*0.0001) % 1, s:0.02 + Math.random()*0.05, l:0.80 + Math.random()*0.1}; 
+                        finalTargetColor.setHSL(tracerActualHSL.h, tracerActualHSL.s, tracerActualHSL.l);
+                    } else if(isCoreParticle[i]) {
+                        sourceColorHSL = this.coreColorPalette[this.currentCoreColorIndex % this.coreColorPalette.length]; 
+                        targetColorHSL = this.coreColorPalette[this.targetCoreColorIndex % this.coreColorPalette.length]; 
+                        transitionProg = this.coreColorTransitionProgress;
+                        const h = THREE.MathUtils.lerp(sourceColorHSL.h, targetColorHSL.h, transitionProg); 
+                        const s = THREE.MathUtils.lerp(sourceColorHSL.s, targetColorHSL.s, transitionProg);
+                        let l = THREE.MathUtils.lerp(sourceColorHSL.l, targetColorHSL.l, transitionProg); 
+                        l = Math.min(0.85 * this.config.coreBrightness, l + averageVolume * this.config.colorIntensityAudio + bass * (this.config.colorIntensityAudio * 0.8)); 
+                        finalTargetColor.setHSL(h,s,l);
+                    } else { 
+                        sourceColorHSL = this.baseColorPalette[this.currentBaseColorIndex % this.baseColorPalette.length]; 
+                        targetColorHSL = this.baseColorPalette[this.targetBaseColorIndex % this.baseColorPalette.length]; 
+                        transitionProg = this.colorTransitionProgress;
+                        const h = THREE.MathUtils.lerp(sourceColorHSL.h, targetColorHSL.h, transitionProg); 
+                        const s = THREE.MathUtils.lerp(sourceColorHSL.s, targetColorHSL.s, transitionProg);
+                        let l = THREE.MathUtils.lerp(sourceColorHSL.l, targetColorHSL.l, transitionProg); 
+                        l = Math.min(0.70, l + averageVolume * (this.config.colorIntensityAudio * 0.8) + mids * (this.config.colorIntensityAudio*0.5));
+                        
+                        const coreColorForInfluence = this.coreColorPalette[this.currentCoreColorIndex % this.coreColorPalette.length];
+                        const coreColorNow = new THREE.Color().setHSL(
+                            coreColorForInfluence.h, 
+                            coreColorForInfluence.s * 0.7, 
+                            Math.min(0.80 * this.config.coreBrightness, coreColorForInfluence.l + averageVolume * (this.config.colorIntensityAudio*0.4))
+                        );
+                        const coreInfluence = Math.max(0, 1 - (initialDistances[i] / (this.coreRadius * 4.5))) * (0.08 + bass * 0.18) ; 
+                        finalTargetColor.setHSL(h,s,l).lerp(coreColorNow, coreInfluence);
+                    }
+                    colors[i3] = THREE.MathUtils.lerp(currentParticleColor.r, finalTargetColor.r, 0.028); 
+                    colors[i3 + 1] = THREE.MathUtils.lerp(currentParticleColor.g, finalTargetColor.g, 0.028); 
+                    colors[i3 + 2] = THREE.MathUtils.lerp(currentParticleColor.b, finalTargetColor.b, 0.028);
+                    
+                    let targetSize;
+                    if (this.isMajestic && isCoronaParticle && isCoronaParticle[i]) {
+                        targetSize = (3.0 + averageVolume * 4.0 + highs * 3.0) * (0.5 + Math.random() * 0.5); 
+                        targetSize = Math.max(1.0, Math.min(targetSize, 15.0));
+                    } else {
+                        targetSize = (isTracerParticle[i] ? 4.0 : 2.2) + averageVolume * 6.5 + bass * 5.5 + highs * 4.0; 
+                        targetSize *= (0.25 + Math.random() * 0.45);
+                        let maxParticleSizeGeneral = isTracerParticle[i] ? 9.0 : 16.0; if (isCoreParticle[i]) { maxParticleSizeGeneral = 12.0; } 
+                        targetSize = Math.max(0.08, Math.min(targetSize, maxParticleSizeGeneral));
+                    }
+                    sizes[i] = THREE.MathUtils.lerp(sizes[i], targetSize, 0.018);
+                    
+                    const lifeRatio = Math.max(0, lifetimes[i] / ( (this.isMajestic && isCoronaParticle && isCoronaParticle[i]) ? (15 + Math.random() * 10) : (7 + Math.random() * 15) ) ); 
+                    let targetAlpha;
+                    if (this.isMajestic && isCoronaParticle && isCoronaParticle[i]) {
+                        targetAlpha = (0.35 + averageVolume * 0.5 + highs * 0.25) * Math.sin(lifeRatio * Math.PI * 0.8 + 0.1); 
+                    } else if (isCoreParticle[i]) { 
+                        targetAlpha = (0.4 + averageVolume * 0.6) * (0.65 + bass * 0.35); 
+                    } else if (isTracerParticle[i]) { 
+                        targetAlpha = Math.sin(lifeRatio * Math.PI) * (0.25 + highs * 0.7); 
+                    } else { 
+                        targetAlpha = (0.015 + averageVolume * 0.985) * Math.sin(lifeRatio * Math.PI); 
+                    }
+                    targetAlpha = Math.min(1.0, Math.max(0.0005, targetAlpha)); alphas[i] = THREE.MathUtils.lerp(alphas[i], targetAlpha, 0.028);
+                }
+                this.geometry.attributes.position.needsUpdate = true; this.geometry.attributes.color.needsUpdate = true;
+                this.geometry.attributes.size.needsUpdate = true; this.geometry.attributes.alpha.needsUpdate = true;
+            }
+
+            dispose() {
+                 if (this.particlesObject) {
+                    if (this.nebulaHeart) this.particlesObject.remove(this.nebulaHeart);
+                    this.scene.remove(this.particlesObject);
+                    if (this.points) {
+                        if (this.points.geometry) this.points.geometry.dispose();
+                        if (this.points.material) { 
+                           if (this.points.material.map) this.points.material.map.dispose();
+                           this.points.material.dispose();
+                        }
+                    }
+                    if (this.nebulaHeart) { 
+                        if (this.nebulaHeart.geometry) this.nebulaHeart.geometry.dispose();
+                        if (this.nebulaHeart.material) this.nebulaHeart.material.dispose();
+                    }
+                    this.particlesObject = null; this.points = null; this.nebulaHeart = null;
+                }
+            }
+            // DENTRO DEL CONSTRUCTOR de RadioNebula, al final
+           
+        // Esta es la llave de cierre del constructor
+        }
+
         function createSharperCircleTexture() {
             const canvas = document.createElement('canvas');
             canvas.width = 128;  // Mayor resolución para más nitidez
@@ -1529,7 +2164,26 @@
             return texture;
         }
 
-        
+        // --- Variables para controles táctiles ---
+        let isTouchDevice = false;
+        let joystickActive = false;
+        let joystickInitialPos = { x: 0, y: 0 };
+        const joystickMaxDistance = 40; // Radio máximo de movimiento del knob (ajústalo si es necesario)
+
+        let touchControlsContainer, joystickContainer, joystickKnob, buttonUp, buttonDown;
+
+        // Para control de cámara táctil (arrastre)
+        let touchCameraInitialPos = { x: 0, y: 0 };
+        let touchIdentifierCamera = null; // Identificador del dedo que controla la cámara
+        let touchIdentifierJoystick = null; // Identificador del dedo que controla el joystick
+
+        // Para "pinch-to-zoom"
+        let initialPinchDistance = null;
+        let touchIdentifierPinch1 = null;
+        let touchIdentifierPinch2 = null;
+        const pinchZoomSensitivity = 0.05; // Ajusta la sensibilidad del zoom
+
+
         // Objetos para la cámara
         let avatarObject;
         let cameraTarget = new THREE.Vector3();
@@ -1550,7 +2204,62 @@
         // Variables de red
         let username = "Explorador" + Math.floor(Math.random() * 1000);
         let otherPlayers = {};
+
+        // AÑADIR ESTE BLOQUE
+        // ----------------------------------------------------
+        const miBibliotecaMusical = [
+            // ¡IMPORTANTE! Reemplaza estas URLs con las URLs reales de tus archivos MP3
+            "https://files.catbox.moe/kmzejt.flac",
+            "https://files.catbox.moe/m4h5se.flac",
+            "https://files.catbox.moe/vk6oe3.flac",
+            "https://files.catbox.moe/103wdw.mp3", //Hay corazon original
+            "https://files.catbox.moe/q95jbe.flac" //Trascendencia2
+        ];
+
+        let gestorDePulsares = {
+            activos: {},       // Almacenará todas las instancias de pulsares
+            pulsarAudible: null, // Guardará la ID del único pulsar que puede sonar
+            // Parámetros de gestión de audio
+            zonaDeCarga: 800,  // Distancia a la que empezamos a cargar el audio
+            zonaAudible: 300   // Distancia a la que el pulsar es candidato para sonar
+        };
         
+        // AÑADIR ESTE BLOQUE COMPLETO DE PALETAS DE COLORES
+        // -------------------------------------------------------------------
+        const MAJESTIC_NEBULA_COLORS_HSL = [
+            { h: 0.80, s: 0.9, l: 0.60, name: "Magenta Profundo" },
+            { h: 0.52, s: 0.9, l: 0.55, name: "Cian Eléctrico" },
+            { h: 0.95, s: 0.8, l: 0.65, name: "Rosa Cósmico" },
+            { h: 0.70, s: 0.85,l: 0.50, name: "Violeta Intenso" },
+            { h: 0.35, s: 0.7, l: 0.50, name: "Verde Esmeralda" },
+            { h: 0.05, s: 0.9, l: 0.60, name: "Naranja Ígneo" },
+        ];
+        const CORE_PULSATING_COLORS_HSL = [
+            { h: 0.0,  s: 0.0, l: 0.80, name: "Blanco Estelar" },
+            { h: 0.83, s: 0.90, l: 0.55, name: "Fucsia Radiante" },
+            { h: 0.93, s: 0.90, l: 0.62, name: "Rosa Eléctrico" },
+            { h: 0.50, s: 0.85,l: 0.60, name: "Calipso Luminoso" },
+            { h: 0.10, s: 0.90, l: 0.53, name: "Oro Brillante" },
+        ];
+        const MAJESTIC_CORONA_COLORS_HSL = [
+            { h: 0.12, s: 1.0, l: 0.75, name: "Oro Solar" },
+            { h: 0.08, s: 0.9, l: 0.80, name: "Ámbar Brillante" },
+            { h: 0.0,  s: 0.0, l: 0.95, name: "Luz Estelar Pura" }
+        ];
+        const TAGUA_TAGUA_BASE_COLORS_HSL = [
+            { h: 0.95, s: 0.9, l: 0.65, name: "Rosa Cósmico Intenso" },
+            { h: 0.85, s: 0.88,l: 0.60, name: "Fucsia Vibrante" },
+            { h: 0.50, s: 0.85,l: 0.60, name: "Calipso Luminoso" },
+            { h: 0.0,  s: 0.9, l: 0.55, name: "Rojo Nebular" },
+            { h: 0.90, s: 0.8, l: 0.70, name: "Magenta Suave" }
+        ];
+        const TAGUA_TAGUA_CORE_COLORS_HSL = [
+            { h: 0.93, s: 0.95, l: 0.70, name: "Rosa Eléctrico Nuclear" },
+            { h: 0.0, s: 1.0, l: 0.65, name: "Rojo Corazón Ardiente" },
+            { h: 0.52, s: 0.9, l: 0.65, name: "Cian Estelar" }
+        ];
+        // -------------------------------------------------------------------
+
         // Configuración física mejorada de galaxias
         const GALAXY_CONFIG = {
             particleCount: 8000,        // Más partículas para mejor efecto
@@ -1586,6 +2295,17 @@
             expansionTime: 5000,        // Tiempo de expansión de la galaxia
             rotationSpeed: 0.005,       // Velocidad de rotación
             lifetime: 30000             // Tiempo de vida de la galaxia
+        };
+        const GALAXY_PULSAR_CONFIG = {
+            baseSize: 60,
+            pulseIntensity: 4.5,
+            pulseSpeedFactor: 0.012,
+            rotationSpeedFactor: 0.0015,
+            coreBrightness: 0.5,
+            generalOpacity: 0.5,
+            colorIntensityAudio: 0.35,
+            coreColorSpeed: 0.20,
+            outerColorSpeed: 0.12
         };
         
         // Clase para partícula individual
@@ -2376,6 +3096,10 @@
             
             // Configurar cámara
             camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            audioListener = new THREE.AudioListener();
+            audioContext = audioListener.context;
+
+            camera.add(audioListener);
             camera.position.set(0, 10, 20);
             
             // Crear renderer
@@ -2430,6 +3154,28 @@
             document.addEventListener('mousemove', onMouseMove);
             document.addEventListener('mouseup', onMouseUp);
             document.addEventListener('wheel', onMouseWheel);
+
+            // Dentro de tu función init()
+            isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0) || (navigator.msMaxTouchPoints > 0);
+
+            // También obtén las referencias a los elementos del DOM para los controles
+            touchControlsContainer = document.getElementById('touch-controls');
+            joystickContainer = document.getElementById('joystick-container');
+            joystickKnob = document.getElementById('joystick-knob');
+            buttonUp = document.getElementById('button-up');
+            buttonDown = document.getElementById('button-down');
+
+            if (isTouchDevice) {
+                console.log("Touch device detected. Initializing touch controls.");
+                if (touchControlsContainer) touchControlsContainer.style.display = 'block';
+                document.body.classList.add('touch-active'); // Para CSS opcional
+                initTouchControls();
+            } else {
+                console.log("Non-touch device detected.");
+            }
+
+            
+
             
             // Prevenir que los clics en el menú cierren el arrastre
             document.getElementById('settingsMenu').addEventListener('mousedown', function(event) {
@@ -2459,9 +3205,9 @@
             document.getElementById('btnGoToCoords').addEventListener('click', teleportToCoords);
             document.getElementById('btnPerspective').addEventListener('click', cycleViewMode);
             
-            document.getElementById('btnFirstPerson').addEventListener('click', () => setViewMode('firstPerson'));
-            document.getElementById('btnThirdPerson').addEventListener('click', () => setViewMode('thirdPerson'));
-            document.getElementById('btnBirdEye').addEventListener('click', () => setViewMode('birdEye'));
+            //document.getElementById('btnFirstPerson').addEventListener('click', () => setViewMode('firstPerson'));
+            //document.getElementById('btnThirdPerson').addEventListener('click', () => setViewMode('thirdPerson'));
+            //document.getElementById('btnBirdEye').addEventListener('click', () => setViewMode('birdEye'));
             
             document.getElementById('connectButton').addEventListener('click', connectToNetwork);
             document.getElementById('usernameInput').value = username;
@@ -2471,6 +3217,292 @@
 
             // Iniciar animación
             animate();
+
+            // AÑADIR ESTAS LÍNEAS EN init()
+            // ----------------------------------------------------
+            nebulaRadarElement = document.getElementById('nebulaRadar');
+            radarArrowElement = document.getElementById('radarArrow');
+            radarDotElement = document.getElementById('radarDot');
+            // En el radar de pulsar10.html había dos puntos. Por ahora solo usaremos uno.
+            // Ocultamos el segundo por si lo usamos después para la radio.
+            const radarDotTaguaTagua = document.getElementById('radarDotTaguaTagua');
+            if(radarDotTaguaTagua) radarDotTaguaTagua.style.display = 'none';
+
+                    // AÑADIMOS LA CONFIGURACIÓN DE CAPAS PARA LA CÁMARA
+            camera.layers.enableAll(); // Nos aseguramos de que la cámara vea todas las capas...
+            camera.layers.disable(CLICKABLE_LAYER); // ...excepto nuestra capa especial para clics.
+            // ----------------------------------------------------
+        }
+
+        // Llama a esta función desde tu init() principal:
+        // if (isTouchDevice) {
+        //     console.log("Touch device detected. Initializing touch controls.");
+        //     touchControlsContainer.style.display = 'block'; // Mostrar contenedor de controles
+        //     document.body.classList.add('touch-active'); // Para deshabilitar scroll del navegador
+        //     initTouchControls();
+        // } else {
+        //     console.log("Non-touch device detected.");
+        // }
+
+        function initTouchControls() {
+            // Joystick
+            joystickKnob.addEventListener('touchstart', handleJoystickStart, { passive: false });
+            document.addEventListener('touchmove', handleJoystickMove, { passive: false });
+            document.addEventListener('touchend', handleJoystickEnd, { passive: false });
+            document.addEventListener('touchcancel', handleJoystickEnd, { passive: false });
+
+            // Botones de acción (Subir/Bajar)
+            // Conecta estos a tus variables de movimiento 'moveUp' y 'moveDown'
+            buttonUp.addEventListener('touchstart', () => { moveUp = true; }, { passive: true });
+            buttonUp.addEventListener('touchend', () => { moveUp = false; }, { passive: true });
+            buttonDown.addEventListener('touchstart', () => { moveDown = true; }, { passive: true });
+            buttonDown.addEventListener('touchend', () => { moveDown = false; }, { passive: true });
+
+            // Control de cámara táctil (arrastre y pinch-to-zoom)
+            // Es importante añadir estos listeners al renderer.domElement (tu canvas)
+            // o a un div que lo contenga y cubra el área de visualización.
+            renderer.domElement.addEventListener('touchstart', handleTouchCameraAndPinchStart, { passive: false });
+            renderer.domElement.addEventListener('touchmove', handleTouchCameraAndPinchMove, { passive: false });
+            renderer.domElement.addEventListener('touchend', handleTouchCameraAndPinchEnd, { passive: false });
+            renderer.domElement.addEventListener('touchcancel', handleTouchCameraAndPinchEnd, { passive: false });
+        }
+
+        function handleJoystickStart(event) {
+            // Prevenir scroll y otros comportamientos por defecto
+            event.preventDefault();
+            // Solo activar si el toque es directamente en el knob y no hay otro dedo ya en el joystick
+            if (event.target === joystickKnob && touchIdentifierJoystick === null) {
+                joystickActive = true;
+                touchIdentifierJoystick = event.changedTouches[0].identifier;
+                const touch = event.changedTouches[0];
+                // Guardar la posición inicial del toque, no del centro del joystick
+                joystickInitialPos.x = touch.clientX;
+                joystickInitialPos.y = touch.clientY;
+                joystickKnob.style.backgroundColor = 'rgba(120, 120, 180, 0.9)';
+            }
+        }
+
+        function handleJoystickMove(event) {
+            if (!joystickActive || touchIdentifierJoystick === null) return;
+            event.preventDefault();
+
+            let touch = null;
+            for (let i = 0; i < event.changedTouches.length; i++) {
+                if (event.changedTouches[i].identifier === touchIdentifierJoystick) {
+                    touch = event.changedTouches[i];
+                    break;
+                }
+            }
+            if (!touch) return; // El dedo del joystick no está en este evento
+
+            const deltaX = touch.clientX - joystickInitialPos.x;
+            const deltaY = touch.clientY - joystickInitialPos.y;
+            let distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+            const angle = Math.atan2(deltaY, deltaX);
+
+            let knobX = deltaX;
+            let knobY = deltaY;
+
+            if (distance > joystickMaxDistance) {
+                knobX = Math.cos(angle) * joystickMaxDistance;
+                knobY = Math.sin(angle) * joystickMaxDistance;
+                // Actualizar joystickInitialPos si se re-centra el dedo fuera del máximo
+                // Esto permite un control más fluido si el dedo se desliza mucho.
+                // Comentado por ahora, puede causar saltos si no se maneja con cuidado.
+                // joystickInitialPos.x = touch.clientX - knobX;
+                // joystickInitialPos.y = touch.clientY - knobY;
+            }
+            
+            // Mover visualmente el knob (relativo al centro del contenedor del joystick)
+            // El CSS ya posiciona el knob en el centro, así que el translate es desde ahí.
+            joystickKnob.style.transform = `translate(${knobX}px, ${knobY}px)`;
+
+            // Actualizar estado de movimiento (CONECTA ESTO CON TUS VARIABLES)
+            const threshold = joystickMaxDistance * 0.2; // Umbral para activar movimiento
+            
+            // Estas son las variables que debes conectar a tu sistema de movimiento.
+            // Por ejemplo, si usas `moveForward` en tu código:
+            moveForward = knobY < -threshold;    // Arriba en el joystick
+            moveBackward = knobY > threshold;   // Abajo en el joystick
+            moveLeft = knobX < -threshold;      // Izquierda en el joystick
+            moveRight = knobX > threshold;     // Derecha en el joystick
+        }
+
+        function handleJoystickEnd(event) {
+            if (touchIdentifierJoystick === null) return;
+
+            let touchEndedOnJoystick = false;
+            for (let i = 0; i < event.changedTouches.length; i++) {
+                if (event.changedTouches[i].identifier === touchIdentifierJoystick) {
+                    touchEndedOnJoystick = true;
+                    break;
+                }
+            }
+
+            if (touchEndedOnJoystick) {
+                joystickActive = false;
+                touchIdentifierJoystick = null; // Liberar identificador
+                joystickKnob.style.transform = `translate(0px, 0px)`; // Reset visual
+                joystickKnob.style.backgroundColor = 'rgba(100, 100, 150, 0.7)';
+                
+                // Resetear variables de movimiento (CONECTA ESTO CON TUS VARIABLES)
+                moveForward = false;
+                moveBackward = false;
+                moveLeft = false;
+                moveRight = false;
+            }
+        }
+
+        function handleTouchCameraAndPinchStart(event) {
+            // Ignorar si el toque es en los controles del joystick o botones
+            if (event.target === joystickKnob || event.target === buttonUp || event.target === buttonDown ||
+                (joystickContainer && joystickContainer.contains(event.target)) ||
+                (document.getElementById('action-buttons-container') && document.getElementById('action-buttons-container').contains(event.target))
+            ) {
+                return;
+            }
+            event.preventDefault();
+
+            if (event.touches.length === 1 && touchIdentifierCamera === null && touchIdentifierJoystick !== event.touches[0].identifier) {
+                // Inicio de arrastre con un dedo para cámara
+                isDragging = true; // Reutilizar la bandera del ratón
+                const touch = event.touches[0];
+                touchIdentifierCamera = touch.identifier;
+                touchCameraInitialPos.x = touch.clientX;
+                touchCameraInitialPos.y = touch.clientY;
+                document.body.classList.add('dragging'); // Opcional, para feedback visual
+                initialPinchDistance = null; // Resetear pinch
+                touchIdentifierPinch1 = null;
+                touchIdentifierPinch2 = null;
+
+            } else if (event.touches.length === 2) {
+                // Inicio de gesto de "pinch" con dos dedos
+                isDragging = false; // Detener el arrastre de cámara si estaba activo
+                touchIdentifierCamera = null; // Liberar el dedo de la cámara
+
+                touchIdentifierPinch1 = event.touches[0].identifier;
+                touchIdentifierPinch2 = event.touches[1].identifier;
+                initialPinchDistance = getPinchDistance(event.touches);
+                document.body.classList.add('dragging'); // Opcional
+            }
+        }
+
+        function handleTouchCameraAndPinchMove(event) {
+            if (!isDragging && initialPinchDistance === null) return; // Ninguna acción táctil activa
+            event.preventDefault();
+
+            if (isDragging && touchIdentifierCamera !== null && event.touches.length === 1) {
+                // Mover cámara con un dedo
+                let touch = null;
+                for (let i = 0; i < event.changedTouches.length; i++) {
+                    if (event.changedTouches[i].identifier === touchIdentifierCamera) {
+                        touch = event.changedTouches[i];
+                        break;
+                    }
+                }
+                if (!touch) return;
+
+                const deltaX = touch.clientX - touchCameraInitialPos.x;
+                const deltaY = touch.clientY - touchCameraInitialPos.y;
+
+                // CONECTA ESTO CON TUS VARIABLES DE ROTACIÓN DE CÁMARA
+                // Ejemplo basado en tu código `index - copia.html`:
+                yawAngle -= deltaX * mouseSensitivity * 1.5; // Aumentar sensibilidad para táctil
+                pitchAngle -= deltaY * mouseSensitivity * 1.5;
+                pitchAngle = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, pitchAngle)); // Limitar pitch
+
+                touchCameraInitialPos.x = touch.clientX;
+                touchCameraInitialPos.y = touch.clientY;
+
+                // Llama a tu función que actualiza la posición/rotación de la cámara
+                // updateCameraPosition(); // Ya se llama en animate()
+
+            } else if (initialPinchDistance !== null && event.touches.length === 2) {
+                // Mover "pinch-to-zoom" con dos dedos
+                // Asegurarse de que los dedos son los mismos que iniciaron el gesto
+                let t1 = null, t2 = null;
+                for(let i=0; i < event.touches.length; i++) {
+                    if(event.touches[i].identifier === touchIdentifierPinch1) t1 = event.touches[i];
+                    if(event.touches[i].identifier === touchIdentifierPinch2) t2 = event.touches[i];
+                }
+
+                if (t1 && t2) {
+                    const currentPinchDistance = getPinchDistance(event.touches);
+                    const deltaDistance = currentPinchDistance - initialPinchDistance;
+
+                    // CONECTA ESTO CON TU VARIABLE DE ZOOM O DISTANCIA DE CÁMARA
+                    // Ejemplo basado en tu código `index - copia.html` (cameraOffset.z o cameraOffset.y):
+                    if (currentViewMode === 'thirdPerson') {
+                        cameraOffset.z -= deltaDistance * pinchZoomSensitivity;
+                        cameraOffset.z = Math.max(5, Math.min(30, cameraOffset.z)); // Usa tus límites
+                    } else if (currentViewMode === 'birdEye') {
+                        cameraOffset.y -= deltaDistance * pinchZoomSensitivity; // En vista de pájaro, el zoom puede afectar la altura
+                        cameraOffset.y = Math.max(10, Math.min(50, cameraOffset.y)); // Usa tus límites
+                    } else if (currentViewMode === 'firstPerson') {
+                        // En primera persona, el pinch podría controlar el FOV de la cámara
+                        // camera.fov -= deltaDistance * pinchZoomSensitivity * 0.1;
+                        // camera.fov = Math.max(30, Math.min(100, camera.fov));
+                        // camera.updateProjectionMatrix();
+                        // O simplemente no hacer nada con el zoom en primera persona.
+                    }
+                    // Llama a tu función que actualiza la posición/rotación de la cámara
+                    // updateCameraPosition(); // Ya se llama en animate()
+                    initialPinchDistance = currentPinchDistance; // Actualizar para el siguiente movimiento
+                }
+            }
+        }
+
+        function handleTouchCameraAndPinchEnd(event) {
+            // Comprobar si el dedo que controlaba la cámara se ha levantado
+            let cameraTouchEnded = false;
+            if (touchIdentifierCamera !== null) {
+                for (let i = 0; i < event.changedTouches.length; i++) {
+                    if (event.changedTouches[i].identifier === touchIdentifierCamera) {
+                        cameraTouchEnded = true;
+                        break;
+                    }
+                }
+            }
+            if (cameraTouchEnded || (isDragging && event.touches.length === 0)) {
+                isDragging = false;
+                touchIdentifierCamera = null;
+                document.body.classList.remove('dragging');
+            }
+
+            // Comprobar si uno de los dedos del pinch se ha levantado
+            let pinchTouchEnded = false;
+            if (touchIdentifierPinch1 !== null || touchIdentifierPinch2 !== null) {
+                for (let i = 0; i < event.changedTouches.length; i++) {
+                    if (event.changedTouches[i].identifier === touchIdentifierPinch1 ||
+                        event.changedTouches[i].identifier === touchIdentifierPinch2) {
+                        pinchTouchEnded = true;
+                        break;
+                    }
+                }
+            }
+            if (pinchTouchEnded || (initialPinchDistance !== null && event.touches.length < 2)) {
+                initialPinchDistance = null;
+                touchIdentifierPinch1 = null;
+                touchIdentifierPinch2 = null;
+                if (!isDragging) { // Solo quitar 'dragging' si no hay otra acción activa
+                    document.body.classList.remove('dragging');
+                }
+            }
+            // Si no quedan dedos en la pantalla, asegurarse de resetear todo
+            if (event.touches.length === 0) {
+                isDragging = false;
+                touchIdentifierCamera = null;
+                initialPinchDistance = null;
+                touchIdentifierPinch1 = null;
+                touchIdentifierPinch2 = null;
+                document.body.classList.remove('dragging');
+            }
+        }
+
+        function getPinchDistance(touches) {
+            const dx = touches[0].clientX - touches[1].clientX;
+            const dy = touches[0].clientY - touches[1].clientY;
+            return Math.sqrt(dx * dx + dy * dy);
         }
         
         // Crear avatar para representar al usuario
@@ -2700,126 +3732,258 @@
         // 1. INTERCAMBIAR LA ASIGNACIÓN DE TECLAS EN LA FUNCIÓN onKeyDown
 
         function onKeyDown(event) {
-            // Primero verificar si el sintetizador está inhibiendo alguna tecla (como la P)
+            // Primero, la misma verificación del sintetizador que ya tenías
             if (window.alienSynth && window.alienSynth.isKeyInhibited(event.key.toLowerCase())) {
-                return; // No procesar esta tecla si está inhibida por el sintetizador
+                return;
             }
-            
-            switch (event.code) {
-                case 'KeyW':
-                    // En tercera persona, W activa moveBackward en lugar de moveForward
-                    if (currentViewMode === 'thirdPerson') {
-                        moveBackward = true;
-                    } else {
-                        moveForward = true;
-                    }
-                    break;
-                case 'KeyS':
-                    // En tercera persona, S activa moveForward en lugar de moveBackward
-                    if (currentViewMode === 'thirdPerson') {
-                        moveForward = true;
-                    } else {
-                        moveBackward = true;
-                    }
-                    break;
-                case 'KeyA':
-                    moveLeft = true;
-                    break;
-                case 'KeyD':
-                    moveRight = true;
-                    break;
-                case 'KeyZ':
-                    moveUp = true;
-                    break;
-                case 'KeyX':
-                    moveDown = true;
-                    break;
-                case 'KeyT':
-                    toggleTeleportPanel();
-                    break;
-                case 'KeyP':
-                    // Solo ejecutar si no está inhibido por el sintetizador
-                    if (!(window.alienSynth && window.alienSynth.isKeyInhibited('p'))) {
-                        cycleViewMode();
-                    }
-                    break;
-                case 'KeyQ':
-                    rotateCameraLeft = true;
-                    break;
-                case 'KeyE':
-                    rotateCameraRight = true;
-                    break;
-                case 'Space':
-                // Activar modo hipervelocidad
-                hyperspaceModeActive = true;
-                if (hyperspaceEffect) {
-                    hyperspaceEffect.toggleHyperspace(true);
-                }
-                break;
-            }
-        }
 
-        function onKeyUp(event) {
-            switch (event.code) {
-                case 'KeyW':
-                    // En tercera persona, W controla moveBackward
-                    if (currentViewMode === 'thirdPerson') {
-                        moveBackward = false;
-                    } else {
-                        moveForward = false;
-                    }
-                    break;
-                case 'KeyS':
-                    // En tercera persona, S controla moveForward
-                    if (currentViewMode === 'thirdPerson') {
-                        moveForward = false;
-                    } else {
-                        moveBackward = false;
-                    }
-                    break;
-                case 'KeyA':
-                    moveLeft = false;
-                    break;
-                case 'KeyD':
-                    moveRight = false;
-                    break;
-                case 'KeyZ':
-                    moveUp = false;
-                    break;
-                case 'KeyX':
-                    moveDown = false;
-                    break;
-                case 'KeyQ':
-                    rotateCameraLeft = false;
-                    break;
-                case 'KeyE':
-                    rotateCameraRight = false;
-                    break;
-                case 'Space':
-                    // Desactivar modo hipervelocidad
-                    hyperspaceModeActive = false;
-                    if (hyperspaceEffect) {
-                        hyperspaceEffect.toggleHyperspace(false);
-                    }
-                    break;
+            // AÑADIDO: Verificamos si estamos en modo órbita
+            if (isOrbitingNebula) {
+                
+                // --- Lógica de controles MIENTRAS se está en órbita ---
+                const orbitSpeedIncrement = 0.002; // Velocidad de movimiento en la órbita
+                const distanceChangeSpeed = 0.8;   // Velocidad para acercarse/alejarse
+
+                switch (event.code) {
+                    case 'KeyW':
+                        orbitDistance -= ORBIT_ZOOM_SPEED;
+                        // Añadimos los límites para que no se acerque o aleje infinitamente
+                        orbitDistance = Math.max(MIN_ORBIT_DISTANCE, Math.min(MAX_ORBIT_DISTANCE, orbitDistance));
+                        break;
+                    case 'KeyS':
+                        orbitDistance += ORBIT_ZOOM_SPEED;
+                        // Repetimos los mismos límites aquí
+                        orbitDistance = Math.max(MIN_ORBIT_DISTANCE, Math.min(MAX_ORBIT_DISTANCE, orbitDistance));
+                        break;
+                    case 'KeyA':
+                        // Aumentamos la velocidad orbital hacia la izquierda
+                        playerOrbitSpeed = orbitSpeedIncrement;
+                        break;
+                    case 'KeyD':
+                        // Aumentamos la velocidad orbital hacia la derecha
+                        playerOrbitSpeed = -orbitSpeedIncrement;
+                        break;
+                    case 'Space':
+                        // Activamos el hipersalto (que acelerará todo en 'animate')
+                        hyperspaceModeActive = true;
+                        break;
+                    case 'KeyC': // La tecla C para entrar en órbita ya está manejada, la dejamos por si acaso
+                        if (event.shiftKey) { 
+                            isOrbitingNebula = false;
+                            orbitingNebulaInstance = null;
+                            if (galaxies[username] && galaxies[username].pixelGalaxy) {
+                                galaxies[username].pixelGalaxy.pixelObject.visible = true;
+                            }
+                        }            
+                        break;
+                    // Dentro del switch del modo órbita, por ejemplo, después del case 'KeyC'
+                    case 'KeyV':
+                        cycleViewMode();
+                        break;
+                        
+                        
+                }
+
+            } else {
+                // --- Lógica de controles en VUELO LIBRE (tu código original) ---
+                switch (event.code) {
+                    case 'KeyW':
+                        if (currentViewMode === 'thirdPerson') { moveBackward = true; } else { moveForward = true; }
+                        break;
+                    case 'KeyS':
+                        if (currentViewMode === 'thirdPerson') { moveForward = true; } else { moveBackward = true; }
+                        break;
+                    case 'KeyA':
+                        moveLeft = true;
+                        break;
+                    case 'KeyD':
+                        moveRight = true;
+                        break;
+                    case 'KeyZ':
+                        moveUp = true;
+                        break;
+                    case 'KeyX':
+                        moveDown = true;
+                        break;
+                    case 'KeyT':
+                        toggleTeleportPanel();
+                        break;
+                    case 'KeyV':
+                        if (!(window.alienSynth && window.alienSynth.isKeyInhibited('p'))) { cycleViewMode(); }
+                        break;
+                    case 'KeyQ':
+                        rotateCameraLeft = true;
+                        break;
+                    case 'KeyE':
+                        rotateCameraRight = true;
+                        break;
+                    case 'Space':
+                        hyperspaceModeActive = true;
+                        if (hyperspaceEffect) { hyperspaceEffect.toggleHyperspace(true); }
+                        break;
+                    case 'KeyC':
+                        if (event.shiftKey) {
+                            isOrbitingNebula = false;
+                            orbitingNebulaInstance = null;
+                            if (galaxies[username] && galaxies[username].pixelGalaxy) {
+                                galaxies[username].pixelGalaxy.pixelObject.visible = true;
+                            }
+                        } else {
+                            if (!isOrbitingNebula) {
+                                const RANGO_DE_INTERACCION_ORBITA = 400;
+                                let pulsarMasCercano = null;
+                                let distanciaMinima = Infinity;
+
+                                for (const pulsarId in gestorDePulsares.activos) {
+                                    const pulsar = gestorDePulsares.activos[pulsarId];
+                                    if (!pulsar.nebula.particlesObject.visible) continue;
+                                    const distancia = avatarObject.position.distanceTo(pulsar.nebula.initialStaticPosition);
+                                    if (distancia < distanciaMinima) {
+                                        distanciaMinima = distancia;
+                                        pulsarMasCercano = pulsar;
+                                    }
+                                }
+
+                                if (pulsarMasCercano && distanciaMinima < RANGO_DE_INTERACCION_ORBITA) {
+                                    console.log("Iniciando órbita alrededor de:", pulsarMasCercano.id);
+                                    isOrbitingNebula = true;
+                                    orbitingNebulaInstance = pulsarMasCercano;
+                                    orbitDistance = distanciaMinima;
+                                    
+                                    const dirToPulsar = new THREE.Vector3().subVectors(orbitingNebulaInstance.nebula.initialStaticPosition, avatarObject.position);
+                                    orbitAngle = Math.atan2(dirToPulsar.z, dirToPulsar.x);
+
+                                    if (galaxies[username] && galaxies[username].pixelGalaxy) {
+                                        galaxies[username].pixelGalaxy.pixelObject.visible = false;
+                                    }
+                                }
+                            }
+                        }
+                        break;
+                }
             }
         }
+            
+        
+
+        // REEMPLAZA TU onKeyUp ENTERA CON ESTA VERSIÓN
+            function onKeyUp(event) {
+                // Si estamos en órbita, manejamos las teclas de órbita
+                if (isOrbitingNebula) {
+                    switch (event.code) {
+                        case 'KeyA':
+                        case 'KeyD':
+                            // Al soltar A o D, la velocidad orbital vuelve a cero
+                            playerOrbitSpeed = 0.0;
+                            break;
+                        case 'Space':
+                            // Desactivamos el hipersalto
+                            hyperspaceModeActive  = false;
+                            break;
+                    }
+                } else {
+                    // Lógica de VUELO LIBRE (tu código original)
+                    switch (event.code) {
+                        case 'KeyW':
+                            if (currentViewMode === 'thirdPerson') { moveBackward = false; } else { moveForward = false; }
+                            break;
+                        case 'KeyS':
+                            if (currentViewMode === 'thirdPerson') { moveForward = false; } else { moveBackward = false; }
+                            break;
+                        case 'KeyA':
+                            moveLeft = false;
+                            break;
+                        case 'KeyD':
+                            moveRight = false;
+                            break;
+                        case 'KeyZ':
+                            moveUp = false;
+                            break;
+                        case 'KeyX':
+                            moveDown = false;
+                            break;
+                        case 'KeyQ':
+                            rotateCameraLeft = false;
+                            break;
+                        case 'KeyE':
+                            rotateCameraRight = false;
+                            break;
+                        case 'Space':
+                            hyperspaceModeActive = false;
+                            if (hyperspaceEffect) { hyperspaceEffect.toggleHyperspace(false); }
+                            break;
+                    }
+                }
+            }
         
         // MEJORADO: Control del mouse para mejor navegación
         function onMouseDown(event) {
-            // Ignorar clics en el menú de configuración
-            if (isClickOnMenu(event)) {
-                return;
+            console.log("--- INICIO DEL CLIC ---"); // Chivato 1: Para saber que la función se ejecuta.
+
+            if (audioContext && audioContext.state === 'suspended') {
+           audioContext.resume();
+    }
+                // Mantenemos las verificaciones de siempre
+            if (isTouchDevice && joystickActive) return;
+            if (isTouchDevice && isDragging && touchIdentifierCamera !== null) return;
+            if (isClickOnMenu(event)) return;
+            if (event.button !== 0) return;
+
+            if (audioContext && audioContext.state === 'suspended') {
+                audioContext.resume();
             }
-            
-            if (event.button === 0) { // Solo botón izquierdo
-                isDragging = true;
-                previousMousePosition = {
-                    x: event.clientX,
-                    y: event.clientY
-                };
+
+            isDragging = true;
+            previousMousePosition = { x: event.clientX, y: event.clientY };
+
+            // --- LÓGICA DE DETECCIÓN CORRECTA ---
+            mousePosition.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mousePosition.y = -(event.clientY / window.innerHeight) * 2 + 1;
+            raycaster.layers.set(CLICKABLE_LAYER); // <-- AÑADE ESTA LÍNEA
+
+            raycaster.setFromCamera(mousePosition, camera);
+
+            // 1. Creamos la lista de blancos buscando en gestorDePulsares.activos
+            const clickableTargets = [];
+            for (const pulsarId in gestorDePulsares.activos) {
+                const pulsar = gestorDePulsares.activos[pulsarId];
+                // Asegurarnos de que el pulsar y su blanco invisible existan
+                if (pulsar && pulsar.nebula && pulsar.nebula.nebulaClickTarget) {
+                    clickableTargets.push(pulsar.nebula.nebulaClickTarget);
+                }
             }
+
+            // Chivato 2: Para saber cuántos púlsares está intentando detectar.
+             console.log("Púlsares encontrados para hacer clic:", clickableTargets.length);
+
+
+            // Si hay blancos que comprobar, lanzamos el rayo
+            if (clickableTargets.length > 0) {
+                const intersects = raycaster.intersectObjects(clickableTargets);
+
+                if (intersects.length > 0) {
+                    console.log("¡ÉXITO! El rayo ha chocado con un objeto:", intersects[0].object);
+
+                    // ¡Click sobre un púlsar!
+                    const clickedTarget = intersects[0].object;
+                    // Usamos la referencia que guardamos para saber qué púlsar es
+                    draggedPulsar = clickedTarget.parentNebula;
+
+                    if (draggedPulsar) {
+                                        // Chivato 4: Confirma que hemos "agarrado" el púlsar.
+                        console.log("Púlsar 'agarrado' exitosamente:", draggedPulsar);
+
+                        draggedPulsar.isBeingDragged = true;
+                        draggedPulsar.momentumVelocity.set(0, 0, 0);
+                    }
+        } else {
+            console.log("FALLO: El rayo fue lanzado, pero no chocó con ningún blanco.");
         }
+    } else {
+        console.log("AVISO: No hay púlsares activos en la lista de clicables.");
+    }
+     console.log("--- FIN DEL CLIC ---");
+}
         
         function isClickOnMenu(event) {
             // Verificar si el clic fue dentro del menú de configuración
@@ -2835,64 +3999,85 @@
         }
         
         function onMouseUp(event) {
+            // Verificaciones para controles táctiles
+            if (isTouchDevice && joystickActive) return;
+            if (isTouchDevice && isDragging && touchIdentifierCamera !== null) return;
+
+            // Lógica para soltar el púlsar
+            if (draggedPulsar) {
+                draggedPulsar.isBeingDragged = false;
+                draggedPulsar = null;
+            }
+
+            // Desactivamos el arrastre general
             isDragging = false;
         }
         
         function onMouseMove(event) {
-            // Si estamos arrastrando (clic sostenido), rotar en horizontal
+            // Mantenemos las verificaciones para dispositivos táctiles
+            if (isTouchDevice && (joystickActive || touchIdentifierCamera !== null)) return;
+
+            // Solo hacemos algo si el botón del ratón está presionado
             if (isDragging) {
-                const deltaMove = {
-                    x: event.clientX - previousMousePosition.x,
-                    y: event.clientY - previousMousePosition.y
-                };
-                
-                // Rotación horizontal con arrastre
-                yawAngle -= deltaMove.x * mouseSensitivity;
-                
-                // MODIFICACIÓN: Aplicar también la rotación vertical mientras se arrastra
-                // en todas las vistas, no solo en primera persona
-                pitchAngle -= deltaMove.y * mouseSensitivity * 0.5;
-                pitchAngle = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, pitchAngle));
-                
-                // Actualizar la rotación del avatar
-                avatarObject.rotation.y = yawAngle;
-                
-                // Actualizar posición previa
+                const deltaX = event.clientX - previousMousePosition.x;
+                const deltaY = event.clientY - previousMousePosition.y;
+
+                if (isOrbitingNebula) {
+                    // --- MODO ÓRBITA: El ratón ahora controla el ÁNGULO de la órbita del AVATAR ---
+                    // El movimiento vertical (deltaY) se puede ignorar o usar para otra cosa en el futuro.
+                    const orbitMouseSensitivity = 0.005; // Puedes ajustar esta sensibilidad.
+                    orbitAngle -= deltaX * orbitMouseSensitivity; // El movimiento horizontal del ratón cambia el ángulo orbital.
+
+                } else {
+                    // --- MODO VUELO LIBRE: El comportamiento se mantiene como lo tenías ---
+                    yawAngle -= deltaX * mouseSensitivity;
+                    pitchAngle -= deltaY * mouseSensitivity * 0.5;
+                    pitchAngle = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, pitchAngle));
+                    avatarObject.rotation.y = yawAngle;
+                }
+
+                // Actualizamos la posición previa del ratón para el siguiente fotograma
                 previousMousePosition = {
                     x: event.clientX,
                     y: event.clientY
                 };
             }
-            
-            // Ya no necesitamos este bloque porque ahora procesamos la mirada vertical
-            // mientras se arrastra el mouse en el bloque anterior
-            /*
-            // Siempre permitir mirar arriba/abajo con movimiento vertical del ratón
-            const movementY = event.movementY || 0;
-            if (Math.abs(movementY) > 0.5) { // Umbral para evitar movimientos accidentales
-                pitchAngle -= movementY * mouseSensitivity * 0.5; // Reducido para suavizar
-                pitchAngle = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, pitchAngle));
+
+            // Actualizamos la posición de la cámara solo en vuelo libre,
+            // ya que en modo órbita se calcula dentro de animate().
+            if (!isOrbitingNebula) {
+                updateCameraPosition();
             }
-            */
-            
-            // Actualizar la posición de la cámara
-            updateCameraPosition();
         }
+
+
+
+
+
         
         function onMouseWheel(event) {
             const zoomSpeed = 0.5;
             const delta = Math.sign(event.deltaY) * zoomSpeed;
             
-            if (currentViewMode === 'thirdPerson') {
-                cameraOffset.z += delta;
-                cameraOffset.z = Math.max(5, Math.min(30, cameraOffset.z));
-            } else if (currentViewMode === 'birdEye') {
-                cameraOffset.y += delta;
-                cameraOffset.y = Math.max(10, Math.min(50, cameraOffset.y));
+            // AÑADIDO: Si estamos orbitando, la rueda cambia la distancia de la órbita
+            if (isOrbitingNebula) {
+                orbitDistance += delta * 5; // Aumentamos el multiplicador para que se sienta más rápido
+                // Añadimos límites para no alejarse o acercarse demasiado
+                orbitDistance = Math.max(MIN_ORBIT_DISTANCE, Math.min(MAX_ORBIT_DISTANCE, orbitDistance));
+            } else {
+                // Lógica de VUELO LIBRE (tu código original)
+                if (currentViewMode === 'thirdPerson') {
+                    cameraOffset.z += delta;
+                    cameraOffset.z = Math.max(5, Math.min(30, cameraOffset.z));
+                } else if (currentViewMode === 'birdEye') {
+                    cameraOffset.y += delta;
+                    cameraOffset.y = Math.max(10, Math.min(50, cameraOffset.y));
+                }
             }
-            
-            updateCameraPosition();
+
+            // Ya no llamamos a updateCameraPosition() aquí, se maneja en el bucle animate
         }
+
         
         function updateCameraPosition() {
             switch (currentViewMode) {
@@ -2988,61 +4173,233 @@
     
     updateCameraPosition();
 }
+        // AÑADIR ESTA NUEVA FUNCIÓN PARA EL RADAR
+        // -------------------------------------------------------------------
+        function updateNebulaRadar() {
+            if (!nebulaRadarElement) return;
 
-        // CORRECCIÓN EN LA FUNCIÓN ANIMATE PARA ASEGURAR UNA ANIMACIÓN FLUIDA
-        function animate() {
-            requestAnimationFrame(animate);
-            try {
-                const speed = 0.2;
-                const direction = new THREE.Vector3(-Math.sin(yawAngle), 0, -Math.cos(yawAngle));
-                
-                // Aplicar efecto de hipervelocidad si está activo
-                let currentSpeedFactor = 1.0;
-                if (hyperspaceEffect) {
-                    // Actualizar el efecto y obtener el factor de velocidad actual
-                    currentSpeedFactor = hyperspaceEffect.update(direction);
+            // El radar apuntará al pulsar que orbitamos, o si no, al que está sonando.
+            const targetPulsar = orbitingNebulaInstance || gestorDePulsares.pulsarAudible;
+
+            if (!targetPulsar) {
+                if(radarArrowElement) radarArrowElement.style.opacity = '0';
+                if(radarDotElement) radarDotElement.style.opacity = '0';
+                return;
+            }
+
+            // El resto de la función es igual, pero ahora usa 'targetPulsar'
+            const radarRadius = nebulaRadarElement.offsetWidth / 2;
+            const dotRadius = radarDotElement.offsetWidth / 2;
+            const nebulaPos = targetPulsar.nebula.initialStaticPosition;
+            const nebulaDirWorld = new THREE.Vector3().subVectors(nebulaPos, avatarObject.position);
+            const cameraInverseMatrix = new THREE.Matrix4().copy(camera.matrixWorldInverse);
+            const nebulaDirCameraSpace = nebulaDirWorld.clone().applyMatrix4(cameraInverseMatrix);
+            const angleToTarget = Math.atan2(nebulaDirCameraSpace.x, -nebulaDirCameraSpace.z);
+
+            radarArrowElement.style.opacity = '1';
+            radarArrowElement.style.transform = `rotate(${angleToTarget}rad)`;
+            
+            const distOnRadarPlane = Math.sqrt(nebulaDirCameraSpace.x * nebulaDirCameraSpace.x + nebulaDirCameraSpace.z * nebulaDirCameraSpace.z);
+            const maxDistForDotInside = radarRadius - dotRadius - 2;
+
+            let dotX, dotY;
+            if (nebulaDirCameraSpace.z > 0 || distOnRadarPlane > maxDistForDotInside * 1.5) {
+                dotX = Math.sin(angleToTarget) * maxDistForDotInside;
+                dotY = -Math.cos(angleToTarget) * maxDistForDotInside;
+                radarDotElement.style.opacity = '0.8';
+            } else {
+                const screenX = (nebulaDirCameraSpace.x / -nebulaDirCameraSpace.z) * radarRadius * 1.2;
+                const screenY = (nebulaDirCameraSpace.y / -nebulaDirCameraSpace.z) * radarRadius * 1.2;
+                const distFromCenter = Math.sqrt(screenX * screenX + screenY * screenY);
+                if (distFromCenter > maxDistForDotInside) {
+                    const scale = maxDistForDotInside / distFromCenter;
+                    dotX = screenX * scale;
+                    dotY = screenY * scale;
+                } else {
+                    dotX = screenX;
+                    dotY = screenY;
+                }
+                radarDotElement.style.opacity = '1';
+            }
+            radarDotElement.style.transform = `translate(${dotX}px, ${dotY}px)`;
+        }
+
+
+        function gestionarAudioYAnimacionPulsares(deltaTime) {
+            const RANGO_DE_VISIBILIDAD = 4000;
+
+            let pulsarMasCercanoAudible = null;
+            let distanciaMinima = Infinity;
+
+            // --- PRIMERA PASADA: GESTIONAR ESTADOS Y ENCONTRAR CANDIDATO ---
+            for (const pulsarId in gestorDePulsares.activos) {
+                const pulsar = gestorDePulsares.activos[pulsarId];
+                if (!pulsar || !pulsar.nebula) continue;
+
+                const distancia = avatarObject.position.distanceTo(pulsar.nebula.initialStaticPosition);
+
+                if (distancia > gestorDePulsares.zonaDeCarga) {
+                    // Si nos alejamos mucho, guardamos el tiempo y descargamos el audio.
+                    if (pulsar.isLoaded) {
+                        pulsar.tiempoGuardado = pulsar.audio.currentTime; // ¡NUEVO! Guardamos el tiempo.
+                        pulsar.audio.pause();
+                        pulsar.audio.src = '';
+                        pulsar.isLoaded = false;
+                        pulsar.isPlaying = false;
+                    }
+                    pulsar.nebula.particlesObject.visible = (distancia <= RANGO_DE_VISIBILIDAD);
+                    continue;
                 }
                 
-                // Aplicar el factor de velocidad al movimiento
-                const adjustedSpeed = speed * currentSpeedFactor;
+                pulsar.nebula.particlesObject.visible = true;
+
+                if (!pulsar.isLoaded) {
+                    // Si entramos en la zona, cargamos la canción que TIENE ASIGNADA.
+                    pulsar.audio.src = pulsar.url; 
+                    pulsar.isLoaded = true;
+                    try {
+                        pulsar.mediaSource = audioListener.context.createMediaElementSource(pulsar.audio);
+                        pulsar.mediaSource.connect(pulsar.analyser);
+                        pulsar.positionalAudio.setNodeSource(pulsar.analyser);
+                    } catch (e) {}
+                }
+                
+                let freqData = new Uint8Array(pulsar.analyser.frequencyBinCount);
+                if (pulsar.isLoaded) pulsar.analyser.getByteFrequencyData(freqData);
+                pulsar.nebula.update(freqData, new Uint8Array(pulsar.analyser.fftSize), deltaTime);
+
+                if (distancia <= gestorDePulsares.zonaAudible) {
+                    if (distancia < distanciaMinima) {
+                        distanciaMinima = distancia;
+                        pulsarMasCercanoAudible = pulsar;
+                    }
+                }
+            }
+
+            // --- SEGUNDA PASADA: APLICAR REGLA DEL "ÚNICO SONIDO" CON MEMORIA ---
+            if (gestorDePulsares.pulsarAudible !== pulsarMasCercanoAudible) {
+                if (gestorDePulsares.pulsarAudible) {
+                    // Guardamos el tiempo del que dejamos de escuchar
+                    gestorDePulsares.pulsarAudible.tiempoGuardado = gestorDePulsares.pulsarAudible.audio.currentTime;
+                    gestorDePulsares.pulsarAudible.audio.pause();
+                    gestorDePulsares.pulsarAudible.isPlaying = false;
+                }
+
+                if (pulsarMasCercanoAudible) {
+                    // ¡NUEVO! Antes de reproducir, ajustamos al tiempo guardado.
+                    if (pulsarMasCercanoAudible.tiempoGuardado > 0) {
+                        pulsarMasCercanoAudible.audio.currentTime = pulsarMasCercanoAudible.tiempoGuardado;
+                    }
+                    pulsarMasCercanoAudible.audio.play().catch(e => console.error("Error al reproducir:", e));
+                    pulsarMasCercanoAudible.isPlaying = true;
+                }
+                
+                gestorDePulsares.pulsarAudible = pulsarMasCercanoAudible;
+            }
+        }
+
+// -------------------------------------------------------------------                  
+        // CORRECCIÓN EN LA FUNCIÓN ANIMATE PARA ASEGURAR UNA ANIMACIÓN FLUIDA
+        // REEMPLAZAR TU FUNCIÓN ANIMATE ACTUAL POR ESTA VERSIÓN COMPLETA
+        // -------------------------------------------------------------------
+        // REEMPLAZA TU animate ENTERA CON ESTA VERSIÓN
+        function animate() {
+            requestAnimationFrame(animate);
+            const deltaTime = clock.getDelta();
+
+            // El cálculo de velocidad y dirección se queda como lo tienes
+            const speed = 0.2;
+            const direction = new THREE.Vector3(-Math.sin(yawAngle), 0, -Math.cos(yawAngle));
+            let currentSpeedFactor = 1.0;
+            if (hyperspaceEffect && !isOrbitingNebula) { // El efecto visual de hipersalto solo en vuelo libre
+                currentSpeedFactor = hyperspaceEffect.update(direction);
+            }
+            const adjustedSpeed = speed * currentSpeedFactor;
+
+            // --- NUEVA LÓGICA DE CONTROL PRINCIPAL ---
+            if (isOrbitingNebula && orbitingNebulaInstance) {
+                // --- MODO ÓRBITA ---
+                
+                // 1. Aplicar controles de jugador a la órbita
+                const hyperspaceOrbitFactor = hyperspaceModeActive ? 8.0 : 1.0; // Multiplicador de hipersalto
+                orbitAngle += (ORBIT_SPEED + playerOrbitSpeed) * deltaTime * 100 * hyperspaceOrbitFactor;
+
+                // Limitar la distancia de la órbita para seguridad
+                orbitDistance = Math.max(MIN_ORBIT_DISTANCE, Math.min(MAX_ORBIT_DISTANCE, orbitDistance));
+
+                // 2. Calcular la nueva posición del AVATAR
+                const targetPulsarPos = orbitingNebulaInstance.nebula.initialStaticPosition;
+                const newAvatarX = targetPulsarPos.x + orbitDistance * Math.cos(orbitAngle);
+                const newAvatarZ = targetPulsarPos.z + orbitDistance * Math.sin(orbitAngle);
+                avatarObject.position.lerp(new THREE.Vector3(newAvatarX, avatarObject.position.y, newAvatarZ), 0.05);
+                avatarObject.lookAt(targetPulsarPos);
+
+                // 3. Lógica de CÁMARA ORBITAL MANUAL (para que siempre mire al púlsar)
+                const pulsarPos = orbitingNebulaInstance.nebula.initialStaticPosition;
+
+                switch (currentViewMode) {
+                    case 'firstPerson':
+                        camera.position.copy(avatarObject.position);
+                        camera.position.y += 1.7; // Altura de los ojos
+                        camera.lookAt(pulsarPos);
+                        break;
+
+                    case 'thirdPerson':
+                        // Calculamos un punto detrás del avatar, relativo al púlsar
+                        const dirToAvatar = new THREE.Vector3().subVectors(avatarObject.position, pulsarPos).normalize();
+                        const offsetBehind = dirToAvatar.multiplyScalar(cameraOffset.z);
+                        camera.position.copy(avatarObject.position).add(offsetBehind);
+                        camera.position.y += cameraOffset.y / 2; // Un poco de altura
+                        camera.lookAt(pulsarPos);
+                        break;
+                    
+                    case 'birdEye':
+                        camera.position.copy(avatarObject.position);
+                        camera.position.y += cameraOffset.y; // Mucha altura
+                        camera.lookAt(pulsarPos);
+                        break;
+                }
+
+            } else {
+                // --- MODO VUELO LIBRE (tu código original, pero con la llamada a la cámara aquí) ---
                 const frontVector = direction.clone().normalize().multiplyScalar(adjustedSpeed);
                 const rightVector = new THREE.Vector3(frontVector.z, 0, -frontVector.x);
 
-                // Movimiento del avatar según teclas
                 if (moveForward) avatarObject.position.add(frontVector);
                 if (moveBackward) avatarObject.position.sub(frontVector);
                 if (moveLeft) avatarObject.position.sub(rightVector);
                 if (moveRight) avatarObject.position.add(rightVector);
                 if (moveUp) avatarObject.position.y += adjustedSpeed;
                 if (moveDown) avatarObject.position.y -= adjustedSpeed;
-                if (rotateCameraLeft) { yawAngle += cameraRotationSpeed; avatarObject.rotation.y = yawAngle; }
-                if (rotateCameraRight) { yawAngle -= cameraRotationSpeed; avatarObject.rotation.y = yawAngle; }
 
+                if (rotateCameraLeft) { yawAngle -= cameraRotationSpeed; }
+                if (rotateCameraRight) { yawAngle += cameraRotationSpeed; }
+                
+                // La cámara sigue al avatar normalmente
                 updateCameraPosition();
-                updateCoordinatesDisplay();
-
-                // Actualizar galaxia personal
-                if (galaxies[username]) {
-                    galaxies[username].updatePosition(avatarObject.position.clone());
-                    galaxies[username].update();
-                }
-                
-                // Actualizar galaxias de otros jugadores
-                for (const playerId in otherPlayers) {
-                    if (galaxies[playerId]) {
-                        galaxies[playerId].update();
-                    }
-                }
-                
-                // Actualizar generador procedural con la posición del avatar
-                if (proceduralGenerator) {
-                    proceduralGenerator.update(avatarObject.position);
-                }
-
-                renderer.render(scene, camera);
-            } catch (error) {
-                console.error("Error en el ciclo de animación:", error);
             }
+
+            // --- El resto de tus funciones de actualización ---
+            updateCoordinatesDisplay();
+            gestionarAudioYAnimacionPulsares(deltaTime);
+            updateNebulaRadar();
+
+            if (galaxies[username]) {
+                galaxies[username].updatePosition(avatarObject.position.clone());
+                galaxies[username].update();
+            }
+
+            if (proceduralGenerator) {
+                proceduralGenerator.update(avatarObject.position);
+            }
+
+            updatableSpecialFeatures.forEach(feature => {
+                if (feature && typeof feature.update === 'function') {
+                    feature.update(deltaTime);
+                }
+            });
+
+            renderer.render(scene, camera);
         }
 
         

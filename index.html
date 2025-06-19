@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -785,6 +786,38 @@
                 this.nebulaeObjects = []; // Tracking para animación de nebulosas
             }
 
+            applyFadeOutEffect(chunkObject, onComplete) {
+                const fadeOutDuration = 1500; // 1.5 segundos para el desvanecimiento
+                const startTime = Date.now();
+
+                const fadeOut = () => {
+                    const elapsedTime = Date.now() - startTime;
+                    const progress = Math.min(1, elapsedTime / fadeOutDuration);
+                    const opacity = 1 - progress; // Opacidad inversa
+
+                    chunkObject.traverse(object => {
+                        if (object.material) {
+                            if (Array.isArray(object.material)) {
+                                object.material.forEach(mat => {
+                                    if (mat._originalOpacity) {
+                                        mat.opacity = opacity * mat._originalOpacity;
+                                    }
+                                });
+                            } else if (object.material._originalOpacity) {
+                                object.material.opacity = opacity * object.material._originalOpacity;
+                            }
+                        }
+                    });
+
+                    if (progress < 1) {
+                        requestAnimationFrame(fadeOut);
+                    } else {
+                        onComplete(); // Llama a la función de completado cuando termina
+                    }
+                };
+                fadeOut();
+            }
+
             update(playerPosition) {
                 this.playerPosition.copy(playerPosition);
                 
@@ -972,14 +1005,20 @@
                     this.nebulaeObjects = this.nebulaeObjects.filter(nebData => {
                         return !chunkObject.children.includes(nebData.object);
                     });
-                    
-                    // Eliminar todos los objetos del cuadrante
-                    this.disposeChunkContents(chunkObject);
-                    this.scene.remove(chunkObject);
+
+                    // Iniciar el fade-out y eliminar el chunk solo cuando termine
+                    this.applyFadeOutEffect(chunkObject, () => {
+                        this.disposeChunkContents(chunkObject);
+                        this.scene.remove(chunkObject);
+                        console.log(`Eliminando cuadrante ${chunkId} después del fade-out`);
+                    });
+
+                    // Es importante eliminarlo del mapa de chunks activos inmediatamente
+                    // para que no se intente eliminar de nuevo.
                     this.activeChunks.delete(chunkId);
-                    console.log(`Eliminando cuadrante ${chunkId}`);
                 }
             }
+
             
             disposeChunkContents(chunkObject) {
                 chunkObject.traverse(object => {

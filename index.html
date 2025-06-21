@@ -743,6 +743,13 @@
         // AÑADE ESTA CONSTANTE PARA LA CAPA DE CLIC
         const CLICKABLE_LAYER = 1;
 
+        // --- Variables para la Radio Tagua Tagua Estática ---
+        let radioTaguaTaguaStream;
+        let radioTaguaTaguaNebula = null;
+        let analyserNodeTaguaTagua;
+        const TAGUA_TAGUA_STREAM_URL = 'https://stream-165.zeno.fm/d5rixk44lfyvv';
+        const TAGUA_TAGUA_NEBULA_POS = new THREE.Vector3(0, 400, 0); // Posición: 400 unidades por encima del origen.
+
 
         // ----------------------------------------------------
 
@@ -2336,7 +2343,8 @@
             lifetime: 30000             // Tiempo de vida de la galaxia
         };
         const GALAXY_PULSAR_CONFIG = {
-            baseSize: 60,
+            
+            baseSize: 80,
             pulseIntensity: 4.5,
             pulseSpeedFactor: 0.012,
             rotationSpeedFactor: 0.0015,
@@ -2345,6 +2353,21 @@
             colorIntensityAudio: 0.35,
             coreColorSpeed: 0.20,
             outerColorSpeed: 0.12
+            
+        };
+
+         // AÑADE ESTE NUEVO OBJETO DE CONFIGURACIÓN
+         const TAGUA_TAGUA_CONFIG = {
+            ...GALAXY_PULSAR_CONFIG, // Copia toda la configuración del púlsar MP3
+            baseSize: 160,
+            pulseIntensity: 4.5,
+            pulseSpeedFactor: 0.012,
+            rotationSpeedFactor: 0.0015,
+            coreBrightness: 0.5,
+            generalOpacity: 0.5,
+            colorIntensityAudio: 0.35,
+            coreColorSpeed: 0.20,
+            outerColorSpeed: 0.12,    // Un núcleo más brillante para que destaque
         };
         
         // Clase para partícula individual
@@ -3122,7 +3145,67 @@
 
         // Sistema de hipervelocidad para Musicosmos
 
+        // Pega esta función completa en tu script (antes de la función init)
 
+        function initStaticTaguaTaguaRadio() {
+            console.log("Inicializando Radio Tagua Tagua estática...");
+
+            // 1. Creamos el elemento de audio para el streaming
+            radioTaguaTaguaStream = new Audio(TAGUA_TAGUA_STREAM_URL);
+            radioTaguaTaguaStream.crossOrigin = "anonymous";
+            radioTaguaTaguaStream.loop = true;
+
+            // 2. Creamos su propio analizador de audio
+            if (audioContext) {
+                analyserNodeTaguaTagua = audioContext.createAnalyser();
+                analyserNodeTaguaTagua.fftSize = 512;
+                analyserNodeTaguaTagua.smoothingTimeConstant = 0.75;
+
+                const source = audioContext.createMediaElementSource(radioTaguaTaguaStream);
+                source.connect(analyserNodeTaguaTagua);
+                // Conectamos también a la salida principal para poder escucharlo
+                analyserNodeTaguaTagua.connect(audioListener.context.destination);
+            }
+
+            // 3. Creamos la instancia de la nebulosa con sus características únicas
+            radioTaguaTaguaNebula = new RadioNebula(
+                scene,
+                TAGUA_TAGUA_NEBULA_POS,
+                analyserNodeTaguaTagua,
+                TAGUA_TAGUA_CONFIG, // Usamos la nueva configuración de tamaño
+                'tagua_tagua',      // Esto aplica los colores especiales que ya tenías
+                true                // 'isMajestic' para que sea más grandiosa
+            );
+
+            // 4. Añadimos el audio posicional para que el sonido venga de la nebulosa
+            const positionalAudio = new THREE.PositionalAudio(audioListener);
+            positionalAudio.setRefDistance(40);
+            positionalAudio.setRolloffFactor(1);
+            positionalAudio.setMaxDistance(3000); // Se podrá escuchar desde muy lejos
+            
+            if (analyserNodeTaguaTagua) {
+                positionalAudio.setNodeSource(analyserNodeTaguaTagua);
+            }
+            radioTaguaTaguaNebula.particlesObject.add(positionalAudio);
+            
+            // 5. Preparamos el audio para la reproducción
+            radioTaguaTaguaStream.load();
+
+            // 6. La registramos en el gestor de púlsares para que el sistema la controle
+            const pulsarId = "tagua_tagua_matriz";
+            gestorDePulsares.activos[pulsarId] = {
+                id: pulsarId,
+                nebula: radioTaguaTaguaNebula,
+                audio: radioTaguaTaguaStream,
+                analyser: analyserNodeTaguaTagua,
+                positionalAudio: positionalAudio,
+                url: TAGUA_TAGUA_STREAM_URL,
+                tiempoGuardado: 0,
+                mediaSource: null,
+                isLoaded: false,
+                isPlaying: false
+            };
+        }
 
         function init() {
             // Crear escena
@@ -3253,6 +3336,8 @@
 
             // Inicializar coordenadas de teletransporte con posición actual
             updateTeleportCoords();
+            
+            initStaticTaguaTaguaRadio(); // <--- AÑADE ESTA LÍNEA
 
             // Iniciar animación
             animate();
@@ -4785,9 +4870,9 @@
                 
                 // Inicializar Web Audio API
                 this.initAudio();
-                
                 // Obtener referencias a elementos DOM
                 this.keyboardElement = document.getElementById('virtualKeyboard');
+                this.headerElement = document.querySelector('.synth-header');
                 this.toggleButton = document.getElementById('toggleKeyboard');
                 this.settingsButton = document.getElementById('synthSettings');
                 this.closeConfigButton = document.getElementById('closeConfigPanel');
@@ -5063,10 +5148,14 @@
             // Inicializar todos los event listeners
             initializeEventListeners() {
                 // Botón para minimizar/maximizar
-                this.toggleButton.addEventListener('click', () => this.toggleMinimize());
-                
+                this.headerElement.addEventListener('click', (event) => {
+                // Nos aseguramos de que el clic no sea en un botón dentro del encabezado
+                if (event.target.tagName !== 'BUTTON' && !event.target.closest('button')) {
+                    this.toggleMinimize();
+                }
+            });                
                 // Botón de configuración
-                this.settingsButton.addEventListener('click', () => this.toggleConfigPanel());
+                    this.settingsButton.addEventListener('click', () => this.toggleConfigPanel());
                 
                 // Botón de cerrar configuración
                 this.closeConfigButton.addEventListener('click', () => this.toggleConfigPanel());
@@ -5492,6 +5581,30 @@
             
             // Exportar a una variable global para acceso desde otras partes del código
             window.alienSynth = alienSynth;
+
+            // --- CÓDIGO AÑADIDO: Minimizar sintetizador al hacer clic fuera ---
+        document.addEventListener('click', function(event) {
+            const keyboardElement = document.getElementById('virtualKeyboard');
+            const settingsMenu = document.getElementById('settingsMenu'); // Referencia al menú de configuración principal
+            const synth = window.alienSynth; // Accedemos a la instancia global
+
+            // Si no existe el sintetizador o su elemento, no hacemos nada
+            if (!synth || !keyboardElement) {
+                return;
+            }
+
+            // Condición para minimizar:
+            // 1. El sintetizador debe estar abierto (no minimizado).
+            // 2. El clic NO debe ser dentro del propio sintetizador.
+            // 3. El clic NO debe ser dentro del menú de configuración principal (para no cerrarlo al mismo tiempo).
+            const isClickOutsideSynth = !keyboardElement.contains(event.target);
+            const isClickOutsideSettings = !settingsMenu.contains(event.target);
+
+            if (!synth.isMinimized && isClickOutsideSynth && isClickOutsideSettings) {
+                synth.toggleMinimize(); // Llamamos a la función para minimizarlo
+            }
+        });
+        // --- FIN DEL CÓDIGO AÑADIDO ---
             
             // Asegurar que la función getNoteNameFromMIDI esté disponible globalmente si es necesario
             if (typeof window.getNoteNameFromMIDI !== 'function') {
@@ -5513,9 +5626,6 @@
             </div>
             <div class="synth-controls">
                 <button id="synthSettings" class="alien-button settings-btn" title="Configuración">⚙</button>
-                <button id="toggleKeyboard" class="alien-button">
-                    <span class="alien-icon">▲</span>
-                </button>
             </div>
         </div>
         

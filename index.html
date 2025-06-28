@@ -293,51 +293,95 @@
     
     <button class="btn-settings" id="btnSettings">⚙️</button>
     
-    <div id="settingsMenu">
-        <h3>Configuración</h3>
-        <div>
-            <h4>Dispositivos MIDI</h4>
-            <div id="midiDevicesContainer">
-                <p>No se encontraron dispositivos MIDI</p>
+    <div id="settingsMenu"> 
+        
+        <div class="settings-tabs">
+            <button class="tab-button active" data-tab="tab-general">General</button>
+            <button class="tab-button" data-tab="tab-playlist">Playlist</button>
+            <button class="tab-button" data-tab="tab-pulsares">Pulsares</button>
+        </div>
+        
+        <div id="tab-general" class="tab-content active">
+            <h3>Configuración General</h3>
+            
+            <div>
+                <h4>Dispositivos MIDI</h4>
+                <div id="midiDevicesContainer">
+                    <p>No se encontraron dispositivos MIDI</p>
+                </div>
+            </div>
+            
+            <div class="network-status">
+                <h4>Multijugador</h4>
+                <input type="text" id="usernameInput" placeholder="Tu nombre en el cosmos" maxlength="20">
+                <button id="connectButton">Conectar</button>
+                <div id="playersOnline"></div>
+            </div>
+        
+            <div class="galaxy-settings">
+                <h4>Configuración de Galaxia</h4>
+                <div class="setting-item">
+                    <label for="galaxySize">Tamaño de Galaxia:</label>
+                    <input type="range" id="galaxySize" min="15" max="50" value="25" class="slider">
+                    <span id="galaxySizeValue">25</span>
+                </div>
+                <div class="setting-item">
+                    <label for="particleCount">Partículas Afectadas por Nota:</label>
+                    <input type="range" id="particleCount" min="5" max="30" value="12" class="slider">
+                    <span id="particleCountValue">12%</span>
+                </div>
+                <div class="setting-item">
+                    <label for="colorMixing">Intensidad de Mezcla de Color:</label>
+                    <input type="range" id="colorMixing" min="30" max="80" value="50" class="slider">
+                    <span id="colorMixingValue">50%</span>
+                </div>
+                <div class="setting-item">
+                    <label for="expansionTime">Tiempo de Expansión:</label>
+                    <input type="range" id="expansionTime" min="2000" max="8000" value="4000" step="1000" class="slider">
+                    <span id="expansionTimeValue">4s</span>
+                </div>
+                <div class="setting-item">
+                    <label for="fadeoutTime">Tiempo de Inactividad:</label>
+                    <input type="range" id="fadeoutTime" min="10000" max="60000" value="20000" step="5000" class="slider">
+                    <span id="fadeoutTimeValue">20s</span>
+                </div>
+                <button id="applyGalaxySettings" class="settings-button">Guardar Configuración</button>
+                <button id="resetGalaxySettings" class="settings-button secondary">Restaurar Valores</button>
             </div>
         </div>
         
-        <div class="network-status">
-            <h4>Multijugador</h4>
-            <input type="text" id="usernameInput" placeholder="Tu nombre en el cosmos" maxlength="20">
-            <button id="connectButton">Conectar</button>
-            <div id="playersOnline"></div>
+        <div id="tab-playlist" class="tab-content">
+            <h3>Playlist del Cosmos</h3>
+            
+            <div class="radio-control-section">
+                <strong>Radio Tagua Tagua (Stream)</strong>
+                <div class="radio-buttons">
+                    <button id="play-tagua-playlist">▶ Play</button>
+                    <button id="stop-tagua-playlist">■ Stop</button>
+                </div>
+            </div>
+        
+            <div class="playlist-container">
+                <ul id="playlist-list">
+                    </ul>
+            </div>
+            
+            <div class="playlist-controls">
+                <div id="now-playing">
+                    <strong>Ahora suena:</strong> <span id="current-track-name">Silencio...</span>
+                </div>
+                <div class="volume-control">
+                    <label for="playlist-volume">Volumen:</label>
+                    <input type="range" id="playlist-volume" min="0" max="1" step="0.01" value="0.7">
+                </div>
+            </div>
         </div>
-        <div class="galaxy-settings">
-            <h4>Configuración de Galaxia</h4>
-            <div class="setting-item">
-              <label for="galaxySize">Tamaño de Galaxia:</label>
-              <input type="range" id="galaxySize" min="15" max="50" value="25" class="slider">
-              <span id="galaxySizeValue">25</span>
+        
+        
+        <div id="tab-pulsares" class="tab-content">
+            <h3>Forja de Pulsares</h3>
+            <p>Próximamente: La forja donde podrás dar a luz a nuevos soles musicales.</p>
             </div>
-            <div class="setting-item">
-              <label for="particleCount">Partículas Afectadas por Nota:</label>
-              <input type="range" id="particleCount" min="5" max="30" value="12" class="slider">
-              <span id="particleCountValue">12%</span>
-            </div>
-            <div class="setting-item">
-              <label for="colorMixing">Intensidad de Mezcla de Color:</label>
-              <input type="range" id="colorMixing" min="30" max="80" value="50" class="slider">
-              <span id="colorMixingValue">50%</span>
-            </div>
-            <div class="setting-item">
-              <label for="expansionTime">Tiempo de Expansión:</label>
-              <input type="range" id="expansionTime" min="2000" max="8000" value="4000" step="1000" class="slider">
-              <span id="expansionTimeValue">4s</span>
-            </div>
-            <div class="setting-item">
-              <label for="fadeoutTime">Tiempo de Inactividad:</label>
-              <input type="range" id="fadeoutTime" min="10000" max="60000" value="20000" step="5000" class="slider">
-              <span id="fadeoutTimeValue">20s</span>
-            </div>
-            <button id="applyGalaxySettings" class="settings-button">Aplicar Configuración</button>
-            <button id="resetGalaxySettings" class="settings-button secondary">Restaurar Valores</button>
-          </div>
           
           <!-- Estilos para el panel de configuración -->
           <style>
@@ -490,6 +534,165 @@
             
             .settings-button.secondary:hover {
               background-color: #777;
+            }
+
+            /* --- ESTILOS PARA PESTAÑAS DEL PANEL DE CONFIGURACIÓN --- */
+            .settings-tabs {
+                display: flex;
+                border-bottom: 1px solid #557;
+                background-color: rgba(40, 40, 60, 0.9);
+                padding: 5px 5px 0 5px;
+                border-top-left-radius: 10px;
+                border-top-right-radius: 10px;
+            }
+
+            .tab-button {
+                padding: 10px 15px;
+                cursor: pointer;
+                background-color: transparent;
+                border: none;
+                color: #aab;
+                font-size: 14px;
+                border-radius: 5px 5px 0 0;
+                transition: background-color 0.3s, color 0.3s;
+                outline: none;
+            }
+
+            .tab-button:hover {
+                background-color: rgba(80, 80, 120, 0.5);
+                color: #fff;
+            }
+
+            .tab-button.active {
+                background-color: rgba(30, 30, 50, 0.9); /* Mismo color que el fondo del panel */
+                color: #fff;
+                border-bottom: 2px solid #4466dd;
+            }
+
+            .tab-content {
+                display: none; /* Oculto por defecto */
+                padding: 15px;
+                animation: fadeIn 0.5s;
+            }
+
+            .tab-content.active {
+                display: block; /* Visible solo si tiene la clase active */
+            }
+
+            @keyframes fadeIn {
+                from { opacity: 0; }
+                to { opacity: 1; }
+            }
+
+            /* --- ESTILOS PARA LA PESTAÑA PLAYLIST --- */
+            .playlist-container {
+                max-height: 200px;
+                overflow-y: auto;
+                background-color: rgba(15, 15, 25, 0.7);
+                border: 1px solid #557;
+                border-radius: 5px;
+                margin-bottom: 15px;
+            }
+
+            #playlist-list {
+                list-style: none;
+                padding: 0;
+                margin: 0;
+            }
+
+            .playlist-item {
+                padding: 10px 12px;
+                border-bottom: 1px solid #334;
+                cursor: pointer;
+                transition: background-color 0.2s;
+                font-size: 14px;
+                display: flex;
+                align-items: center;
+                gap: 10px;
+            }
+
+            .playlist-item:last-child {
+                border-bottom: none;
+            }
+
+            .playlist-item:hover {
+                background-color: rgba(80, 80, 120, 0.5);
+            }
+
+            .playlist-item.active {
+                background-color: rgba(68, 102, 221, 0.6);
+                color: #fff;
+                font-weight: bold;
+            }
+
+            .playlist-item .play-indicator {
+                font-size: 10px;
+                color: #9f9;
+                opacity: 0;
+                transition: opacity 0.3s;
+            }
+
+            .playlist-item.active .play-indicator {
+                opacity: 1;
+            }
+
+            .playlist-controls {
+                margin-top: 10px;
+                padding-top: 10px;
+                border-top: 1px solid #557;
+            }
+
+            #now-playing {
+                font-size: 13px;
+                margin-bottom: 10px;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+
+            #now-playing span {
+                color: #aac;
+            }
+
+            .volume-control {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                font-size: 14px;
+            }
+
+            #playlist-volume {
+                flex-grow: 1;
+            }
+
+            /* --- AÑADE ESTOS ESTILOS AL FINAL DE TU CSS --- */
+            .radio-control-section {
+                padding: 10px;
+                background-color: rgba(30, 30, 50, 0.8);
+                border-radius: 5px;
+                margin-bottom: 15px;
+                text-align: center;
+            }
+            .radio-control-section strong {
+                font-size: 14px;
+                color: #ffc0d0; /* Color distintivo para la radio */
+            }
+            .radio-buttons {
+                margin-top: 8px;
+                display: flex;
+                justify-content: center;
+                gap: 10px;
+            }
+            .radio-buttons button {
+                background-color: #555;
+                border: 1px solid #777;
+                color: #eee;
+                padding: 5px 15px;
+                border-radius: 4px;
+                cursor: pointer;
+            }
+            .radio-buttons button:hover {
+                background-color: #666;
             }
           </style>
           
@@ -682,6 +885,7 @@
             loadGalaxySettings();
           });
           </script>
+          
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -749,6 +953,16 @@
         let analyserNodeTaguaTagua;
         const TAGUA_TAGUA_STREAM_URL = 'https://stream-165.zeno.fm/d5rixk44lfyvv';
         const TAGUA_TAGUA_NEBULA_POS = new THREE.Vector3(0, 400, 0); // Posición: 400 unidades por encima del origen.
+
+        // --- Variables para la Playlist ---
+        let playlistAudio = new Audio(); // Un único elemento de audio para toda la playlist
+        let playlist = []; // Array que contendrá los objetos de las canciones
+        let currentPlaylistIndex = -1; // Índice de la canción que está sonando
+        let userPlaylistVolume = 0.7; // Volumen base controlado por el usuario
+
+        // --- Constantes para el Fade ---
+        const FADE_START_DISTANCE = 800; // Distancia a la que empieza el fade out
+        const FADE_END_DISTANCE = 350;   // Distancia a la que el volumen es 0
 
 
         // ----------------------------------------------------
@@ -914,6 +1128,10 @@
                                 
                                 // ¡Punto Clave! Elegimos la canción AHORA, en el nacimiento.
                                 const cancionUrl = elegirSiguienteCancion();
+
+                                // AÑADE ESTA LÍNEA PARA AGREGAR LA CANCIÓN A LA PLAYLIST
+                                addTrackToPlaylist(`Pulsar Descubierto #${Math.floor(Math.random()*1000)}`, cancionUrl);
+
 
                                 const audioElement = new Audio();
                                 audioElement.crossOrigin = "anonymous";
@@ -2068,6 +2286,129 @@
             // DENTRO DEL CONSTRUCTOR de RadioNebula, al final
            
         // Esta es la llave de cierre del constructor
+        }
+
+        // --- LÓGICA DE LA PLAYLIST ---
+
+        // Función para inicializar la playlist al cargar la página
+        function initPlaylist() {
+            // Ya no añadimos la radio aquí, tiene sus propios botones
+            
+            const volumeSlider = document.getElementById('playlist-volume');
+            volumeSlider.addEventListener('input', (e) => {
+                userPlaylistVolume = parseFloat(e.target.value);
+                if (!playlistAudio.paused) {
+                    playlistAudio.volume = userPlaylistVolume; // Ajusta el volumen si algo está sonando
+                }
+            });
+
+            // Conectar botones de Radio Tagua Tagua
+            document.getElementById('play-tagua-playlist').addEventListener('click', () => {
+                playTrack(-1); // Usamos un índice especial (-1) para la radio
+            });
+            document.getElementById('stop-tagua-playlist').addEventListener('click', stopPlaylist);
+        }
+
+
+        // Añade una nueva canción a la playlist (si no existe ya)
+        function addTrackToPlaylist(name, url, isStream = false) {
+            // Evitar duplicados
+            if (playlist.some(track => track.url === url)) {
+                return;
+            }
+            
+            playlist.push({ name, url, isStream });
+            renderPlaylist(); // Vuelve a dibujar la lista con la nueva canción
+        }
+
+        // Dibuja la lista de canciones en el HTML
+        function renderPlaylist() {
+            const listElement = document.getElementById('playlist-list');
+            listElement.innerHTML = ''; 
+
+            if (playlist.length === 0) {
+                listElement.innerHTML = `<li class="playlist-item-empty">Aún no has descubierto púlsares...</li>`;
+            }
+
+            playlist.forEach((track, index) => {
+                const item = document.createElement('li');
+                item.className = 'playlist-item';
+                
+                // El item se marca como activo si su índice es el que está sonando
+                if (index === currentPlaylistIndex) {
+                    item.classList.add('active');
+                }
+                item.dataset.index = index;
+                
+                // Mostrar indicador de Play/Pause
+                const playIndicator = (index === currentPlaylistIndex && !playlistAudio.paused) ? '❚❚' : '▶';
+                item.innerHTML = `<span class="play-indicator">${playIndicator}</span> ${track.name}`;
+
+                item.addEventListener('click', () => {
+                    togglePlay(index); // Ahora llama a la función de toggle
+                });
+                listElement.appendChild(item);
+            });
+        }
+
+
+        // REEMPLAZA playTrack con estas DOS nuevas funciones
+
+        function togglePlay(index) {
+            // Si se hace clic en la canción que ya está sonando, se pausa/reanuda.
+            if (index === currentPlaylistIndex) {
+                if (playlistAudio.paused) {
+                    playlistAudio.play();
+                } else {
+                    playlistAudio.pause();
+                }
+                return;
+            }
+
+            currentPlaylistIndex = index;
+            // Si el índice es -1, es la Radio Tagua Tagua. Si no, es una canción de la lista.
+            const track = index === -1 ? { name: "Radio Tagua Tagua", url: TAGUA_TAGUA_STREAM_URL, isStream: true } : playlist[index];
+
+            playlistAudio.src = track.url;
+            playlistAudio.loop = !track.isStream;
+            playlistAudio.volume = userPlaylistVolume;
+            playlistAudio.play().catch(e => console.error("Error al reproducir desde la playlist:", e));
+
+            document.getElementById('current-track-name').textContent = track.name;
+            renderPlaylist(); // Actualizar la UI
+        }
+
+        function stopPlaylist() {
+            playlistAudio.pause();
+            playlistAudio.src = ""; // Detener completamente la carga
+            currentPlaylistIndex = -1;
+            document.getElementById('current-track-name').textContent = "Silencio...";
+            renderPlaylist();
+        }
+
+        // Gestiona el fade out/in del volumen según la proximidad a púlsares
+        function handlePlaylistFade() {
+            if (playlistAudio.paused || currentPlaylistIndex === -1) return; // No hacer nada si no hay nada sonando
+
+            let nearestDistance = Infinity;
+            // Buscar el púlsar del MUNDO REAL más cercano (no la radio)
+            if (gestorDePulsares.pulsarAudible && gestorDePulsares.pulsarAudible.id !== "tagua_tagua_matriz") {
+                nearestDistance = avatarObject.position.distanceTo(gestorDePulsares.pulsarAudible.nebula.initialStaticPosition);
+            }
+            
+            let fadeMultiplier = 1.0;
+
+            if (nearestDistance < FADE_START_DISTANCE) {
+                if (nearestDistance <= FADE_END_DISTANCE) {
+                    fadeMultiplier = 0.0;
+                } else {
+                    // Calcular el volumen basado en la posición dentro de la "zona de fade"
+                    fadeMultiplier = (nearestDistance - FADE_END_DISTANCE) / (FADE_START_DISTANCE - FADE_END_DISTANCE);
+                }
+            }
+            
+            // Aplicar el volumen final
+            playlistAudio.volume = userPlaylistVolume * fadeMultiplier;
         }
 
         function createSharperCircleTexture() {
@@ -3257,6 +3598,11 @@
 
             // Crear avatar para representar al usuario
             createAvatar();
+
+            initTabs(); // <--- AÑADE ESTA LLAMADA
+            initPlaylist(); // <--- AÑADE ESTA LLAMADA
+
+
             
             // Crear fondo estelar
             //createStarBackground(); - 
@@ -4507,6 +4853,8 @@
             // --- El resto de tus funciones de actualización ---
             updateCoordinatesDisplay();
             gestionarAudioYAnimacionPulsares(deltaTime);
+            handlePlaylistFade(); // <--- AÑADE ESTA LLAMADA
+
             updateNebulaRadar();
 
             if (galaxies[username]) {
@@ -4670,6 +5018,24 @@
             } else {
                 midiStatusElement.textContent = 'Tu navegador no soporta Web MIDI API';
             }
+        }
+
+        function initTabs() {
+            const tabButtons = document.querySelectorAll('.tab-button');
+            const tabContents = document.querySelectorAll('.tab-content');
+
+            tabButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    // Quitar 'active' de todos los botones y contenidos
+                    tabButtons.forEach(btn => btn.classList.remove('active'));
+                    tabContents.forEach(content => content.classList.remove('active'));
+
+                    // Añadir 'active' al botón clickeado y a su contenido correspondiente
+                    button.classList.add('active');
+                    const targetTabId = button.getAttribute('data-tab');
+                    document.getElementById(targetTabId).classList.add('active');
+                });
+            });
         }
 
         function onMIDISuccess(access) {

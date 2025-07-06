@@ -157,15 +157,17 @@
             width: 300px;
             max-height: 80vh;
             overflow-y: auto;
-            background-color: rgba(30,30,50,0.9);
+            /* CAMBIA ESTA LÍNEA para mayor transparencia */
+            background-color: rgba(30, 30, 50, 0.85); 
             color: white;
             border-radius: 10px;
-            padding: 20px;
+            padding: 0; /* Lo quitamos de aquí para controlar por secciones */
             box-shadow: 0 0 20px rgba(0,0,255,0.3);
             z-index: 200;
             display: none;
-            backdrop-filter: blur(5px);
+            backdrop-filter: blur(8px); /* Aumentamos el blur para que se vea mejor */
         }
+
         #settingsMenu h3 {
             margin-top: 0;
             color: #aaf;
@@ -260,6 +262,82 @@
         #connectButton:hover {
             background-color: #5577ee;
         }
+
+        .playlist-separator {
+            border: none;
+            height: 1px;
+            background-color: #557;
+            margin: 15px 0;
+        }
+
+        .playlist-section {
+            width: 100%;
+        }
+
+        .playlist-header-controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+            padding: 0 5px;
+        }
+
+        .playlist-header-controls strong {
+            font-size: 14px;
+            color: #c7e5ff;
+        }
+
+        .playlist-buttons button {
+            background: none;
+            border: 1px solid #557;
+            color: #aab;
+            width: 28px;
+            height: 28px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .playlist-buttons button:hover {
+            border-color: #fff;
+            color: #fff;
+        }
+
+        .playlist-buttons button.active {
+            background-color: rgba(68, 102, 221, 0.6);
+            border-color: #4466dd;
+            color: #fff;
+        }
+
+        .playlist-item.radio-stream {
+            background-color: rgba(20, 20, 25, 0.8);
+            border: 1px solid #98324a;
+            color: #ff99aa;
+            font-weight: bold;
+            border-radius: 5px;
+            margin: 0 15px; /* Margen para que no ocupe todo el ancho */
+        }
+
+        .playlist-item.radio-stream:hover {
+            border-color: #ff5577;
+            color: #ffdde2;
+            background-color: rgba(50, 25, 30, 0.8);
+        }
+
+        .playlist-item.radio-stream.active {
+            background-color: rgba(180, 60, 90, 0.6);
+            border-color: #ff809d;
+            color: #fff;
+        }
+
+        .playlist-item-empty {
+            padding: 10px;
+            text-align: center;
+            font-style: italic;
+            color: #778;
+        }
+        </style>
     </style>
 </head>
 <body>
@@ -352,18 +430,28 @@
         
         <div id="tab-playlist" class="tab-content">
             <h3>Playlist del Cosmos</h3>
-            
-            <div class="radio-control-section">
-                <strong>Radio Tagua Tagua (Stream)</strong>
-                <div class="radio-buttons">
-                    <button id="play-tagua-playlist">▶ Play</button>
-                    <button id="stop-tagua-playlist">■ Stop</button>
+        
+            <div class="playlist-section" id="radio-section">
+                <div id="tagua-radio-item" class="playlist-item radio-stream">
+                    <span class="play-indicator">▶</span> Radio Tagua Tagua (Stream)
                 </div>
             </div>
         
-            <div class="playlist-container">
-                <ul id="playlist-list">
+            <hr class="playlist-separator">
+        
+            <div class="playlist-section">
+                <div class="playlist-header-controls">
+                    <strong>Púlsares Descubiertos</strong>
+                    <div class="playlist-buttons">
+                        <button id="btn-repeat" title="Repetir">🔁</button>
+                        <button id="btn-shuffle" title="Aleatorio">🔀</button>
+                    </div>
+                </div>
+                <div class="playlist-container">
+                    <ul id="playlist-list">
+                        <li class="playlist-item-empty">Aún no has descubierto púlsares.</li>
                     </ul>
+                </div>
             </div>
             
             <div class="playlist-controls">
@@ -371,17 +459,23 @@
                     <strong>Ahora suena:</strong> <span id="current-track-name">Silencio...</span>
                 </div>
                 <div class="volume-control">
-                    <label for="playlist-volume">Volumen:</label>
+                    <label for="playlist-volume">Volumen Playlist (2D):</label>
                     <input type="range" id="playlist-volume" min="0" max="1" step="0.01" value="0.7">
+                </div>
+                <div class="volume-control">
+                    <label for="pulsarVolume">Volumen Púlsares (3D):</label>
+                    <input type="range" id="pulsarVolume" min="0.1" max="15" value="5" step="0.1" class="slider">
+                    <span id="pulsarVolumeValue">5.0</span>
                 </div>
             </div>
         </div>
         
         
+        
         <div id="tab-pulsares" class="tab-content">
             <h3>Forja de Pulsares</h3>
             <p>Próximamente: La forja donde podrás dar a luz a nuevos soles musicales.</p>
-            </div>
+        </div>
           
           <!-- Estilos para el panel de configuración -->
           <style>
@@ -694,6 +788,58 @@
             .radio-buttons button:hover {
                 background-color: #666;
             }
+            /* AÑADE ESTE BLOQUE A TU CSS */
+
+            .playlist-separator {
+                border: none;
+                height: 1px;
+                background-color: #557;
+                margin: 10px 15px;
+            }
+            .playlist-section {
+                padding: 0 15px;
+            }
+            #radio-section {
+                padding-bottom: 5px;
+            }
+            .playlist-header-controls {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 8px;
+            }
+            .playlist-buttons button {
+                background: none; border: 1px solid #557; color: #aab;
+                width: 28px; height: 28px; border-radius: 5px; cursor: pointer;
+                font-size: 14px; transition: all 0.2s;
+            }
+            .playlist-buttons button:hover {
+                border-color: #fff; color: #fff;
+            }
+            .playlist-buttons button.active {
+                background-color: rgba(68, 102, 221, 0.6);
+                border-color: #4466dd; color: #fff;
+            }
+            .playlist-item.radio-stream {
+                background-color: rgba(20, 20, 25, 0.8);
+                border: 1px solid #98324a; color: #ff99aa;
+                font-weight: bold; border-radius: 5px;
+            }
+            .playlist-item.radio-stream:hover {
+                border-color: #ff5577; color: #ffdde2;
+                background-color: rgba(50, 25, 30, 0.8);
+            }
+            .playlist-item.radio-stream.active {
+                background-color: rgba(180, 60, 90, 0.6);
+                border-color: #ff809d; color: #fff;
+            }
+            .playlist-item-empty {
+                padding: 10px; text-align: center;
+                font-style: italic; color: #778;
+            }
+            .volume-control {
+                margin-top: 10px;
+            }
           </style>
           
           <!-- Script para manejar la configuración de la galaxia -->
@@ -954,15 +1100,21 @@
         const TAGUA_TAGUA_STREAM_URL = 'https://stream-165.zeno.fm/d5rixk44lfyvv';
         const TAGUA_TAGUA_NEBULA_POS = new THREE.Vector3(0, 400, 0); // Posición: 400 unidades por encima del origen.
 
-        // --- Variables para la Playlist ---
-        let playlistAudio = new Audio(); // Un único elemento de audio para toda la playlist
-        let playlist = []; // Array que contendrá los objetos de las canciones
-        let currentPlaylistIndex = -1; // Índice de la canción que está sonando
-        let userPlaylistVolume = 0.7; // Volumen base controlado por el usuario
+       // REEMPLAZA las variables de la playlist con estas:
+         // --- Variables de la Playlist (Versión Simplificada) ---
+        let playlistAudio = new Audio(); // Un único reproductor para todo
+        let playlist = []; 
+        let currentTrackId = null; // Usaremos un ID único ('radio' o el pulsarId) en lugar de un índice
+        let userPlaylistVolume = 0.7; 
+        let pulsarVolumeMultiplier = 10.0;
+        let isRepeatOn = false;
+        let isShuffleOn = false;
 
         // --- Constantes para el Fade ---
         const FADE_START_DISTANCE = 800; // Distancia a la que empieza el fade out
         const FADE_END_DISTANCE = 350;   // Distancia a la que el volumen es 0
+
+
 
 
         // ----------------------------------------------------
@@ -1872,11 +2024,12 @@
                 this.orbitCenter = this.initialStaticPosition.clone(); 
                 this.orbitAmplitude = new THREE.Vector3(80 + Math.random() * 70, 20 + Math.random() * 30, 80 + Math.random() * 70);
                 this.orbitPhase = new THREE.Vector3(Math.random() * Math.PI * 2, Math.random() * Math.PI * 2, Math.random() * Math.PI * 2);
+// Aumentamos la velocidad base para que sea un poco más rápida que las nebulosas
                 this.orbitSpeed = new THREE.Vector3(
-                    (Math.random() - 0.5) * 0.00015, 
-                    (Math.random() - 0.5) * 0.00008,
-                    (Math.random() - 0.5) * 0.00015
-                );
+                                    (Math.random() - 0.5) * 0.007, 
+                                    (Math.random() - 0.5) * 0.004,
+                                    (Math.random() - 0.5) * 0.007
+                                );
                 this.currentDynamicPosition = this.initialStaticPosition.clone(); 
 
                 this.baseColorPalette = (type === 'tagua_tagua') ? TAGUA_TAGUA_BASE_COLORS_HSL : MAJESTIC_NEBULA_COLORS_HSL; 
@@ -2290,126 +2443,195 @@
 
         // --- LÓGICA DE LA PLAYLIST ---
 
-        // Función para inicializar la playlist al cargar la página
+        // REEMPLAZA TODAS TUS FUNCIONES DE PLAYLIST CON ESTE BLOQUE
+        // --- LÓGICA DE LA PLAYLIST (Versión Unificada y Corregida) ---
+
         function initPlaylist() {
-            // Ya no añadimos la radio aquí, tiene sus propios botones
+            playlistAudio.addEventListener('ended', playNextTrack);
             
-            const volumeSlider = document.getElementById('playlist-volume');
-            volumeSlider.addEventListener('input', (e) => {
-                userPlaylistVolume = parseFloat(e.target.value);
-                if (!playlistAudio.paused) {
-                    playlistAudio.volume = userPlaylistVolume; // Ajusta el volumen si algo está sonando
-                }
-            });
-
-            // Conectar botones de Radio Tagua Tagua
-            document.getElementById('play-tagua-playlist').addEventListener('click', () => {
-                playTrack(-1); // Usamos un índice especial (-1) para la radio
-            });
-            document.getElementById('stop-tagua-playlist').addEventListener('click', stopPlaylist);
-        }
-
-
-        // Añade una nueva canción a la playlist (si no existe ya)
-        function addTrackToPlaylist(name, url, isStream = false) {
-            // Evitar duplicados
-            if (playlist.some(track => track.url === url)) {
-                return;
+            const volumeSlider2D = document.getElementById('playlist-volume');
+            if (volumeSlider2D) {
+                volumeSlider2D.addEventListener('input', (e) => {
+                    userPlaylistVolume = parseFloat(e.target.value);
+                    playlistAudio.volume = userPlaylistVolume;
+                });
             }
             
-            playlist.push({ name, url, isStream });
-            renderPlaylist(); // Vuelve a dibujar la lista con la nueva canción
+            const volumeSlider3D = document.getElementById('pulsarVolume');
+            const volumeValue3D = document.getElementById('pulsarVolumeValue');
+            if (volumeSlider3D) {
+                volumeSlider3D.addEventListener('input', (e) => {
+                    pulsarVolumeMultiplier = parseFloat(e.target.value);
+                    volumeValue3D.textContent = pulsarVolumeMultiplier.toFixed(1);
+                    
+                    // Actualiza el volumen de todos los púlsares activos en tiempo real
+                    for (const pulsarId in gestorDePulsares.activos) {
+                        const pulsar = gestorDePulsares.activos[pulsarId];
+                        if (pulsar && pulsar.preAmpGain) {
+                            pulsar.preAmpGain.gain.setValueAtTime(pulsarVolumeMultiplier, audioListener.context.currentTime);
+                        }
+                    }
+                });
+            }
+
+            document.getElementById('btn-repeat').addEventListener('click', toggleRepeat);
+            document.getElementById('btn-shuffle').addEventListener('click', toggleShuffle);
+            document.getElementById('tagua-radio-item').addEventListener('click', () => togglePlay('radio'));
         }
 
-        // Dibuja la lista de canciones en el HTML
+        // Esta es la única versión de la función que necesitas
+        function addTrackToPlaylist(name, url) {
+            const trackId = url; // Usamos la URL como ID único para evitar duplicados
+            if (playlist.some(track => track.id === trackId)) return;
+
+            playlist.push({ id: trackId, name, url });
+            renderPlaylist();
+        }
+
         function renderPlaylist() {
             const listElement = document.getElementById('playlist-list');
-            listElement.innerHTML = ''; 
+            const radioItem = document.getElementById('tagua-radio-item');
 
+            // Actualiza el estado visual del item de la Radio
+            const isRadioActive = (currentTrackId === 'radio' && !playlistAudio.paused);
+            radioItem.classList.toggle('active', isRadioActive);
+            radioItem.querySelector('.play-indicator').innerHTML = isRadioActive ? '❚❚' : '▶';
+
+            // Renderiza la lista de púlsares descubiertos
+            listElement.innerHTML = '';
             if (playlist.length === 0) {
-                listElement.innerHTML = `<li class="playlist-item-empty">Aún no has descubierto púlsares...</li>`;
+                 listElement.innerHTML = `<li class="playlist-item-empty">Aún no has descubierto púlsares.</li>`;
+                 return;
             }
 
-            playlist.forEach((track, index) => {
+            playlist.forEach(track => {
                 const item = document.createElement('li');
                 item.className = 'playlist-item';
                 
-                // El item se marca como activo si su índice es el que está sonando
-                if (index === currentPlaylistIndex) {
-                    item.classList.add('active');
-                }
-                item.dataset.index = index;
+                const isActive = (currentTrackId === track.id && !playlistAudio.paused);
+                item.classList.toggle('active', isActive);
                 
-                // Mostrar indicador de Play/Pause
-                const playIndicator = (index === currentPlaylistIndex && !playlistAudio.paused) ? '❚❚' : '▶';
+                const playIndicator = isActive ? '❚❚' : '▶';
                 item.innerHTML = `<span class="play-indicator">${playIndicator}</span> ${track.name}`;
-
-                item.addEventListener('click', () => {
-                    togglePlay(index); // Ahora llama a la función de toggle
-                });
+                
+                item.addEventListener('click', () => togglePlay(track.id));
                 listElement.appendChild(item);
             });
         }
 
+        function togglePlay(trackId) {
+            if (audioContext && audioContext.state === 'suspended') {
+                audioContext.resume();
+            }
 
-        // REEMPLAZA playTrack con estas DOS nuevas funciones
-
-        function togglePlay(index) {
-            // Si se hace clic en la canción que ya está sonando, se pausa/reanuda.
-            if (index === currentPlaylistIndex) {
+            if (trackId === currentTrackId) {
                 if (playlistAudio.paused) {
                     playlistAudio.play();
                 } else {
                     playlistAudio.pause();
                 }
+                renderPlaylist();
                 return;
             }
 
-            currentPlaylistIndex = index;
-            // Si el índice es -1, es la Radio Tagua Tagua. Si no, es una canción de la lista.
-            const track = index === -1 ? { name: "Radio Tagua Tagua", url: TAGUA_TAGUA_STREAM_URL, isStream: true } : playlist[index];
+            currentTrackId = trackId;
+            let trackToPlay;
 
-            playlistAudio.src = track.url;
-            playlistAudio.loop = !track.isStream;
+            if (trackId === 'radio') {
+                trackToPlay = { name: "Radio Tagua Tagua (Stream)", url: TAGUA_TAGUA_STREAM_URL, isStream: true };
+            } else {
+                trackToPlay = playlist.find(t => t.id === trackId);
+            }
+
+            if (!trackToPlay) return;
+
+            playlistAudio.src = trackToPlay.url;
+            playlistAudio.loop = !trackToPlay.isStream && isRepeatOn && !isShuffleOn;
             playlistAudio.volume = userPlaylistVolume;
-            playlistAudio.play().catch(e => console.error("Error al reproducir desde la playlist:", e));
+            playlistAudio.play().catch(e => console.error("Error al reproducir:", e));
 
-            document.getElementById('current-track-name').textContent = track.name;
-            renderPlaylist(); // Actualizar la UI
+            document.getElementById('current-track-name').textContent = trackToPlay.name;
+            renderPlaylist();
+        }
+
+        function playNextTrack() {
+            if (currentTrackId === 'radio' || playlist.length === 0) return;
+
+            const currentIndex = playlist.findIndex(t => t.id === currentTrackId);
+            if (currentIndex === -1) return;
+
+            let nextIndex;
+            if (isShuffleOn) {
+                do {
+                    nextIndex = Math.floor(Math.random() * playlist.length);
+                } while (playlist.length > 1 && nextIndex === currentIndex);
+            } else {
+                if (currentIndex === playlist.length - 1 && !isRepeatOn) {
+                    stopPlaylist();
+                    return;
+                }
+                nextIndex = (currentIndex + 1) % playlist.length;
+            }
+
+            const nextTrack = playlist[nextIndex];
+            if (nextTrack) {
+                togglePlay(nextTrack.id);
+            }
         }
 
         function stopPlaylist() {
             playlistAudio.pause();
-            playlistAudio.src = ""; // Detener completamente la carga
-            currentPlaylistIndex = -1;
+            playlistAudio.src = "";
+            currentTrackId = null;
             document.getElementById('current-track-name').textContent = "Silencio...";
             renderPlaylist();
         }
 
-        // Gestiona el fade out/in del volumen según la proximidad a púlsares
+        function toggleRepeat() {
+            isRepeatOn = !isRepeatOn;
+            const btn = document.getElementById('btn-repeat');
+            btn.classList.toggle('active', isRepeatOn);
+
+            if (isRepeatOn && isShuffleOn) {
+                isShuffleOn = false;
+                document.getElementById('btn-shuffle').classList.remove('active');
+            }
+            if (currentTrackId !== 'radio' && !playlistAudio.paused) {
+                playlistAudio.loop = isRepeatOn;
+            }
+        }
+
+        function toggleShuffle() {
+            isShuffleOn = !isShuffleOn;
+            const btn = document.getElementById('btn-shuffle');
+            btn.classList.toggle('active', isShuffleOn);
+
+            if (isShuffleOn && isRepeatOn) {
+                isRepeatOn = false;
+                document.getElementById('btn-repeat').classList.remove('active');
+                playlistAudio.loop = false;
+            }
+        }
+
         function handlePlaylistFade() {
-            if (playlistAudio.paused || currentPlaylistIndex === -1) return; // No hacer nada si no hay nada sonando
+            if (playlistAudio.paused || !currentTrackId) return;
 
             let nearestDistance = Infinity;
-            // Buscar el púlsar del MUNDO REAL más cercano (no la radio)
             if (gestorDePulsares.pulsarAudible && gestorDePulsares.pulsarAudible.id !== "tagua_tagua_matriz") {
-                nearestDistance = avatarObject.position.distanceTo(gestorDePulsares.pulsarAudible.nebula.initialStaticPosition);
+                // Asegúrate que la posición dinámica del púlsar se usa aquí
+                nearestDistance = avatarObject.position.distanceTo(gestorDePulsares.pulsarAudible.nebula.particlesObject.position);
             }
             
             let fadeMultiplier = 1.0;
-
             if (nearestDistance < FADE_START_DISTANCE) {
-                if (nearestDistance <= FADE_END_DISTANCE) {
-                    fadeMultiplier = 0.0;
-                } else {
-                    // Calcular el volumen basado en la posición dentro de la "zona de fade"
-                    fadeMultiplier = (nearestDistance - FADE_END_DISTANCE) / (FADE_START_DISTANCE - FADE_END_DISTANCE);
-                }
+                fadeMultiplier = (nearestDistance - FADE_END_DISTANCE) / (FADE_START_DISTANCE - FADE_END_DISTANCE);
+                fadeMultiplier = Math.max(0, Math.min(1, fadeMultiplier));
             }
             
-            // Aplicar el volumen final
             playlistAudio.volume = userPlaylistVolume * fadeMultiplier;
         }
+
+        // La función initAudioControls ya no es necesaria, su lógica está integrada arriba.
 
         function createSharperCircleTexture() {
             const canvas = document.createElement('canvas');
@@ -3601,6 +3823,10 @@
 
             initTabs(); // <--- AÑADE ESTA LLAMADA
             initPlaylist(); // <--- AÑADE ESTA LLAMADA
+            //initAudioControls(); // <--- AÑADE ESTA LLAMADA
+            initMIDI();
+
+// Todo bien hasta aquí
 
 
             
@@ -4308,7 +4534,7 @@
                                 for (const pulsarId in gestorDePulsares.activos) {
                                     const pulsar = gestorDePulsares.activos[pulsarId];
                                     if (!pulsar.nebula.particlesObject.visible) continue;
-                                    const distancia = avatarObject.position.distanceTo(pulsar.nebula.initialStaticPosition);
+                                    const distancia = avatarObject.position.distanceTo(pulsar.nebula.particlesObject.position);
                                     if (distancia < distanciaMinima) {
                                         distanciaMinima = distancia;
                                         pulsarMasCercano = pulsar;
@@ -4698,6 +4924,8 @@
 
         function gestionarAudioYAnimacionPulsares(deltaTime) {
             const RANGO_DE_VISIBILIDAD = 4000;
+            const FADE_DURATION = 1500;
+            const time = Date.now() * 0.001; // ¡NUEVO! Variable de tiempo para la animación
 
             let pulsarMasCercanoAudible = null;
             let distanciaMinima = Infinity;
@@ -4707,12 +4935,15 @@
                 const pulsar = gestorDePulsares.activos[pulsarId];
                 if (!pulsar || !pulsar.nebula) continue;
 
-                const distancia = avatarObject.position.distanceTo(pulsar.nebula.initialStaticPosition);
+                // ¡NUEVO! Actualizamos la posición orbital del púlsar en cada fotograma
+                pulsar.nebula.updateOrbitalPosition(time);
+
+                // ¡CAMBIO! La distancia ahora se calcula a la posición dinámica actual
+                const distancia = avatarObject.position.distanceTo(pulsar.nebula.particlesObject.position);
 
                 if (distancia > gestorDePulsares.zonaDeCarga) {
-                    // Si nos alejamos mucho, guardamos el tiempo y descargamos el audio.
                     if (pulsar.isLoaded) {
-                        pulsar.tiempoGuardado = pulsar.audio.currentTime; // ¡NUEVO! Guardamos el tiempo.
+                        pulsar.tiempoGuardado = pulsar.audio.currentTime;
                         pulsar.audio.pause();
                         pulsar.audio.src = '';
                         pulsar.isLoaded = false;
@@ -4725,14 +4956,34 @@
                 pulsar.nebula.particlesObject.visible = true;
 
                 if (!pulsar.isLoaded) {
-                    // Si entramos en la zona, cargamos la canción que TIENE ASIGNADA.
-                    pulsar.audio.src = pulsar.url; 
-                    pulsar.isLoaded = true;
+                    pulsar.audio.src = pulsar.url;
+
                     try {
-                        pulsar.mediaSource = audioListener.context.createMediaElementSource(pulsar.audio);
-                        pulsar.mediaSource.connect(pulsar.analyser);
+                        if (!pulsar.positionalAudio) {
+                            pulsar.positionalAudio = new THREE.PositionalAudio(audioListener);
+                        }
+                        pulsar.positionalAudio.setRefDistance(40);
+                        pulsar.positionalAudio.setRolloffFactor(1.0);
+                        pulsar.positionalAudio.setMaxDistance(3000);
+
+                        const preAmpGain = audioListener.context.createGain();
+                        preAmpGain.gain.setValueAtTime(pulsarVolumeMultiplier, audioListener.context.currentTime);
+                        pulsar.preAmpGain = preAmpGain; // <-- AÑADE ESTA LÍNEA
+
+                        if (!pulsar.mediaSource) {
+                            pulsar.mediaSource = audioListener.context.createMediaElementSource(pulsar.audio);
+                        }
+                        
+                        pulsar.mediaSource.disconnect();
+                        pulsar.mediaSource.connect(preAmpGain);
+                        preAmpGain.connect(pulsar.analyser);
                         pulsar.positionalAudio.setNodeSource(pulsar.analyser);
-                    } catch (e) {}
+
+                    } catch (e) {
+                        console.error("Error al configurar la cadena de audio:", e);
+                    }
+                    
+                    pulsar.isLoaded = true;
                 }
                 
                 let freqData = new Uint8Array(pulsar.analyser.frequencyBinCount);
@@ -4747,26 +4998,84 @@
                 }
             }
 
-            // --- SEGUNDA PASADA: APLICAR REGLA DEL "ÚNICO SONIDO" CON MEMORIA ---
+            // --- SEGUNDA PASADA: APLICAR REGLA DEL "ÚNICO SONIDO" CON FADES ---
             if (gestorDePulsares.pulsarAudible !== pulsarMasCercanoAudible) {
                 if (gestorDePulsares.pulsarAudible) {
-                    // Guardamos el tiempo del que dejamos de escuchar
-                    gestorDePulsares.pulsarAudible.tiempoGuardado = gestorDePulsares.pulsarAudible.audio.currentTime;
-                    gestorDePulsares.pulsarAudible.audio.pause();
-                    gestorDePulsares.pulsarAudible.isPlaying = false;
+                    const pulsarAnterior = gestorDePulsares.pulsarAudible;
+                    pulsarAnterior.tiempoGuardado = pulsarAnterior.audio.currentTime;
+                    fadeOutAudio(pulsarAnterior.audio, FADE_DURATION);
+                    pulsarAnterior.isPlaying = false;
                 }
 
                 if (pulsarMasCercanoAudible) {
-                    // ¡NUEVO! Antes de reproducir, ajustamos al tiempo guardado.
                     if (pulsarMasCercanoAudible.tiempoGuardado > 0) {
                         pulsarMasCercanoAudible.audio.currentTime = pulsarMasCercanoAudible.tiempoGuardado;
                     }
                     pulsarMasCercanoAudible.audio.play().catch(e => console.error("Error al reproducir:", e));
+                    fadeInAudio(pulsarMasCercanoAudible.audio, FADE_DURATION, 1.0);
                     pulsarMasCercanoAudible.isPlaying = true;
                 }
                 
                 gestorDePulsares.pulsarAudible = pulsarMasCercanoAudible;
             }
+        }
+
+        // hasta aqui perfecto andrés
+
+        // --- NUEVAS FUNCIONES PARA FADE-IN Y FADE-OUT DE AUDIO ---
+
+        /**
+         * Aumenta gradualmente el volumen de un elemento de audio.
+         * @param {HTMLAudioElement} audioElement - El elemento de audio a modificar.
+         * @param {number} duration - La duración del fade en milisegundos.
+         * @param {number} targetVolume - El volumen final (entre 0.0 y 1.0).
+         */
+         function fadeInAudio(audioElement, duration, targetVolume) {
+            // Si ya hay un fade en curso, lo cancelamos para empezar uno nuevo.
+            if (audioElement.fadeInterval) {
+                clearInterval(audioElement.fadeInterval);
+            }
+
+            audioElement.volume = 0;
+            const stepTime = 50; // ms por cada paso de volumen
+            const volumeStep = targetVolume / (duration / stepTime);
+
+            audioElement.fadeInterval = setInterval(() => {
+                if (audioElement.volume < targetVolume) {
+                    audioElement.volume = Math.min(targetVolume, audioElement.volume + volumeStep);
+                } else {
+                    audioElement.volume = targetVolume;
+                    clearInterval(audioElement.fadeInterval);
+                    audioElement.fadeInterval = null;
+                }
+            }, stepTime);
+        }
+
+        /**
+         * Disminuye gradualmente el volumen de un elemento de audio y lo pausa al final.
+         * @param {HTMLAudioElement} audioElement - El elemento de audio a modificar.
+         * @param {number} duration - La duración del fade en milisegundos.
+         */
+        function fadeOutAudio(audioElement, duration) {
+            // Si ya hay un fade en curso, lo cancelamos.
+            if (audioElement.fadeInterval) {
+                clearInterval(audioElement.fadeInterval);
+            }
+
+            const initialVolume = audioElement.volume;
+            const stepTime = 50; // ms por cada paso
+            const volumeStep = initialVolume / (duration / stepTime);
+
+            audioElement.fadeInterval = setInterval(() => {
+                if (audioElement.volume > 0) {
+                    audioElement.volume = Math.max(0, audioElement.volume - volumeStep);
+                } else {
+                    audioElement.volume = 0;
+                    clearInterval(audioElement.fadeInterval);
+                    audioElement.fadeInterval = null;
+                    audioElement.pause(); // Pausamos el audio solo cuando el volumen llega a cero.
+                }
+            }, stepTime);
         }
 
 // -------------------------------------------------------------------                  
